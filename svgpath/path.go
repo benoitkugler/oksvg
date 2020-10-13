@@ -10,19 +10,19 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
-// Adder interface for types that can accumlate path commands
-type Adder interface {
-	// Start starts a new curve at the given point.
-	Start(a fixed.Point26_6)
-	// Line adds a line segment to the path
-	Line(b fixed.Point26_6)
-	// QuadBezier adds a quadratic bezier curve to the path
-	QuadBezier(b, c fixed.Point26_6)
-	// CubeBezier adds a cubic bezier curve to the path
-	CubeBezier(b, c, d fixed.Point26_6)
-	// Closes the path to the start point if closeLoop is true
-	Stop(closeLoop bool)
-}
+// // Adder interface for types that can accumlate path commands
+// type Adder interface {
+// 	// Start starts a new curve at the given point.
+// 	Start(a fixed.Point26_6)
+// 	// Line adds a line segment to the path
+// 	Line(b fixed.Point26_6)
+// 	// QuadBezier adds a quadratic bezier curve to the path
+// 	QuadBezier(b, c fixed.Point26_6)
+// 	// CubeBezier adds a cubic bezier curve to the path
+// 	CubeBezier(b, c, d fixed.Point26_6)
+// 	// Closes the path to the start point if closeLoop is true
+// 	Stop(closeLoop bool)
+// }
 
 type pathCommand uint8
 
@@ -119,22 +119,22 @@ func (p *Path) Stop(closeLoop bool) {
 	}
 }
 
-// AddTo adds the Path p to q.
-func (p Path) AddTo(q Adder) {
-	for _, op := range p {
-		switch op := op.(type) {
-		case MoveTo:
-			q.Stop(false) // Fixes issues #1 by described by Djadala; implicit close if currently in path.
-			q.Start(fixed.Point26_6(op))
-		case LineTo:
-			q.Line(fixed.Point26_6(op))
-		case QuadTo:
-			q.QuadBezier(op[0], op[1])
-		case CubicTo:
-			q.CubeBezier(op[0], op[1], op[2])
-		case Close:
-			q.Stop(true)
-		}
-	}
-	q.Stop(false)
-}
+// // AddTo adds the Path p to q.
+// func (p Path) AddTo(q Adder) {
+// 	for _, op := range p {
+// 		switch op := op.(type) {
+// 		case MoveTo:
+// 			q.Stop(false) // Fixes issues #1 by described by Djadala; implicit close if currently in path.
+// 			q.Start(fixed.Point26_6(op))
+// 		case LineTo:
+// 			q.Line(fixed.Point26_6(op))
+// 		case QuadTo:
+// 			q.QuadBezier(op[0], op[1])
+// 		case CubicTo:
+// 			q.CubeBezier(op[0], op[1], op[2])
+// 		case Close:
+// 			q.Stop(true)
+// 		}
+// 	}
+// 	q.Stop(false)
+// }

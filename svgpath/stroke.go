@@ -22,10 +22,10 @@ type (
 	// JoinMode type to specify how segments join.
 	JoinMode uint8
 	// CapFunc defines a function that draws caps on the ends of lines
-	CapFunc func(p Adder, a, eNorm fixed.Point26_6)
+	CapFunc func(p *matrixAdder, a, eNorm fixed.Point26_6)
 	// GapFunc defines a function to bridge gaps when the miter limit is
 	// exceeded
-	GapFunc func(p Adder, a, tNorm, lNorm fixed.Point26_6)
+	GapFunc func(p *matrixAdder, a, tNorm, lNorm fixed.Point26_6)
 
 	// C2Point represents a point that connects two stroke segments
 	// and holds the tangent, normal and radius of curvature
@@ -70,7 +70,7 @@ func Length(v fixed.Point26_6) fixed.Int26_6 {
 }
 
 // GapToCap is a utility that converts a CapFunc to GapFunc
-func GapToCap(p Adder, a, eNorm fixed.Point26_6, gf GapFunc) {
+func GapToCap(p *matrixAdder, a, eNorm fixed.Point26_6, gf GapFunc) {
 	p.Start(a.Add(eNorm))
 	gf(p, a, eNorm, Invert(eNorm))
 	p.Line(a.Sub(eNorm))
@@ -78,12 +78,12 @@ func GapToCap(p Adder, a, eNorm fixed.Point26_6, gf GapFunc) {
 
 var (
 	// ButtCap caps lines with a straight line
-	ButtCap CapFunc = func(p Adder, a, eNorm fixed.Point26_6) {
+	ButtCap CapFunc = func(p *matrixAdder, a, eNorm fixed.Point26_6) {
 		p.Start(a.Add(eNorm))
 		p.Line(a.Sub(eNorm))
 	}
 	// SquareCap caps lines with a square which is slightly longer than ButtCap
-	SquareCap CapFunc = func(p Adder, a, eNorm fixed.Point26_6) {
+	SquareCap CapFunc = func(p *matrixAdder, a, eNorm fixed.Point26_6) {
 		tpt := a.Add(turnStarboard90(eNorm))
 		p.Start(a.Add(eNorm))
 		p.Line(tpt.Add(eNorm))
@@ -91,35 +91,35 @@ var (
 		p.Line(a.Sub(eNorm))
 	}
 	// RoundCap caps lines with a half-circle
-	RoundCap CapFunc = func(p Adder, a, eNorm fixed.Point26_6) {
+	RoundCap CapFunc = func(p *matrixAdder, a, eNorm fixed.Point26_6) {
 		GapToCap(p, a, eNorm, RoundGap)
 	}
 	// CubicCap caps lines with a cubic bezier
-	CubicCap CapFunc = func(p Adder, a, eNorm fixed.Point26_6) {
+	CubicCap CapFunc = func(p *matrixAdder, a, eNorm fixed.Point26_6) {
 		GapToCap(p, a, eNorm, CubicGap)
 	}
 	// QuadraticCap caps lines with a quadratic bezier
-	QuadraticCap CapFunc = func(p Adder, a, eNorm fixed.Point26_6) {
+	QuadraticCap CapFunc = func(p *matrixAdder, a, eNorm fixed.Point26_6) {
 		GapToCap(p, a, eNorm, QuadraticGap)
 	}
 	// Gap functions
 
 	//FlatGap bridges miter-limit gaps with a straight line
-	FlatGap GapFunc = func(p Adder, a, tNorm, lNorm fixed.Point26_6) {
+	FlatGap GapFunc = func(p *matrixAdder, a, tNorm, lNorm fixed.Point26_6) {
 		p.Line(a.Add(lNorm))
 	}
 	// RoundGap bridges miter-limit gaps with a circular arc
-	RoundGap GapFunc = func(p Adder, a, tNorm, lNorm fixed.Point26_6) {
+	RoundGap GapFunc = func(p *matrixAdder, a, tNorm, lNorm fixed.Point26_6) {
 		strokeArc(p, a, a.Add(tNorm), a.Add(lNorm), true, 0, 0, p.Line)
 		p.Line(a.Add(lNorm)) // just to be sure line joins cleanly,
 		// last pt in stoke arc may not be precisely s2
 	}
 	// CubicGap bridges miter-limit gaps with a cubic bezier
-	CubicGap GapFunc = func(p Adder, a, tNorm, lNorm fixed.Point26_6) {
+	CubicGap GapFunc = func(p *matrixAdder, a, tNorm, lNorm fixed.Point26_6) {
 		p.CubeBezier(a.Add(tNorm).Add(turnStarboard90(tNorm)), a.Add(lNorm).Add(turnPort90(lNorm)), a.Add(lNorm))
 	}
 	// QuadraticGap bridges miter-limit gaps with a quadratic bezier
-	QuadraticGap GapFunc = func(p Adder, a, tNorm, lNorm fixed.Point26_6) {
+	QuadraticGap GapFunc = func(p *matrixAdder, a, tNorm, lNorm fixed.Point26_6) {
 		c1, c2 := a.Add(tNorm).Add(turnStarboard90(tNorm)), a.Add(lNorm).Add(turnPort90(lNorm))
 		cm := c1.Add(c2).Mul(fixed.Int26_6(1 << 5))
 		p.QuadBezier(cm, a.Add(lNorm))
@@ -127,7 +127,7 @@ var (
 )
 
 // StrokeArc strokes a circular arc by approximation with bezier curves
-func strokeArc(p Adder, a, s1, s2 fixed.Point26_6, clockwise bool, trimStart,
+func strokeArc(p *matrixAdder, a, s1, s2 fixed.Point26_6, clockwise bool, trimStart,
 	trimEnd fixed.Int26_6, firstPoint func(p fixed.Point26_6)) (ps1, ds1, ps2, ds2 fixed.Point26_6) {
 	// Approximate the circular arc using a set of cubic bezier curves by the method of
 	// L. Maisonobe, "Drawing an elliptical arc using polylines, quadratic
@@ -609,7 +609,7 @@ func (r *Stroker) joinF() {
 // to a segment to segment join point. Although it is only required in those cases,
 // at this point, no code has been written to properly detect when it is needed,
 // so for now it just draws by default.
-func (jp *C2Point) blackWidowMark(ra Adder) {
+func (jp *C2Point) blackWidowMark(ra *matrixAdder) {
 	xprod := jp.TNorm.X*jp.LNorm.Y - jp.TNorm.Y*jp.LNorm.X
 	if xprod > epsilonFixed*epsilonFixed {
 		tl := jp.P.Sub(jp.TNorm)

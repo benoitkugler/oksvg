@@ -32,17 +32,17 @@ type (
 		Dash                              []float64
 		UseNonZeroWinding                 bool
 		fillerColor, linerColor           interface{} // either color.Color or Gradient
-		LineGap                           GapMode
-		LeadLineCap                       CapMode // This is used if different than LineCap
-		LineCap                           CapMode
+		LineGap                           GapFunc
+		LeadLineCap                       CapFunc // This is used if different than LineCap
+		LineCap                           CapFunc
 		LineJoin                          JoinMode
-		mAdder                            MatrixAdder // current transform
+		transform                         Matrix2D // current transform
 	}
 
 	// SvgPath binds a style to a path
 	SvgPath struct {
-		PathStyle
-		Path Path
+		Path  Path
+		Style PathStyle
 	}
 
 	// SvgIcon holds data from parsed SVGs
@@ -77,7 +77,7 @@ type (
 // full opacity, no stroke, ButtCap line end and Bevel line connect.
 var DefaultStyle = PathStyle{1.0, 1.0, 2.0, 0.0, 4.0, nil, true,
 	color.NRGBA{0x00, 0x00, 0x00, 0xff}, nil,
-	NoGap, NoCap, ButtCap, Bevel, MatrixAdder{M: Identity}}
+	nil, nil, ButtCap, Bevel, Identity}
 
 // // Draw the compiled SVG icon into the GraphicContext.
 // // All elements should be contained by the Bounds rectangle of the SvgIcon.
@@ -101,9 +101,9 @@ func (s *SvgIcon) SetTarget(x, y, w, h float64) {
 
 // // DrawTransformed draws the compiled SvgPath into the Dasher while applying transform t.
 // func (svgp *SvgPath) DrawTransformed(r *rasterx.Dasher, opacity float64, t Matrix2D) {
-// 	m := svgp.mAdder.M
-// 	svgp.mAdder.M = t.Mult(m)
-// 	defer func() { svgp.mAdder.M = m }() // Restore untransformed matrix
+// 	m := svgp.transform
+// 	svgp.transform = t.Mult(m)
+// 	defer func() { svgp.transform = m }() // Restore untransformed matrix
 // 	if svgp.fillerColor != nil {
 // 		r.Clear()
 // 		rf := &r.Filler
@@ -313,7 +313,7 @@ func (c *IconCursor) readTransformAttr(m1 Matrix2D, k string) (Matrix2D, error) 
 
 func (c *IconCursor) parseTransform(v string) (Matrix2D, error) {
 	ts := strings.Split(v, ")")
-	m1 := c.StyleStack[len(c.StyleStack)-1].mAdder.M
+	m1 := c.StyleStack[len(c.StyleStack)-1].transform
 	for _, t := range ts {
 		t = strings.TrimSpace(t)
 		if len(t) == 0 {
@@ -323,7 +323,7 @@ func (c *IconCursor) parseTransform(v string) (Matrix2D, error) {
 		if len(d) != 2 || len(d[1]) < 1 {
 			return m1, errParamMismatch // badly formed transformation
 		}
-		err := c.GetPoints(d[1])
+		err := c.getPoints(d[1])
 		if err != nil {
 			return m1, err
 		}
@@ -461,7 +461,7 @@ func (c *IconCursor) readStyleAttr(curStyle *PathStyle, k, v string) error {
 		if err != nil {
 			return err
 		}
-		curStyle.mAdder.M = m
+		curStyle.transform = m
 	}
 	return nil
 }
@@ -542,10 +542,9 @@ func (c *IconCursor) readStartElement(se xml.StartElement) (err error) {
 
 	if len(c.path) > 0 {
 		//The cursor parsed a path from the xml element
-		pathCopy := make(Path, len(c.path))
-		copy(pathCopy, c.path)
+		pathCopy := append(Path{}, c.path...)
 		c.icon.SVGPaths = append(c.icon.SVGPaths,
-			SvgPath{c.StyleStack[len(c.StyleStack)-1], pathCopy})
+			SvgPath{Path: pathCopy, Style: c.StyleStack[len(c.StyleStack)-1]})
 		c.path = c.path[:0]
 	}
 	return
@@ -765,7 +764,7 @@ func svgF(c *IconCursor, attrs []xml.Attr) error {
 	for _, attr := range attrs {
 		switch attr.Name.Local {
 		case "viewBox":
-			err = c.GetPoints(attr.Value)
+			err = c.getPoints(attr.Value)
 			if len(c.points) != 4 {
 				return errParamMismatch
 			}
@@ -816,7 +815,7 @@ func rectF(c *IconCursor, attrs []xml.Attr) error {
 	if w == 0 || h == 0 {
 		return nil
 	}
-	AddRoundRect(x+c.curX, y+c.curY, w+x+c.curX, h+y+c.curY, rx, ry, 0, RoundGap, &c.path)
+	c.path.addRoundRect(x+c.curX, y+c.curY, w+x+c.curX, h+y+c.curY, rx, ry, 0)
 	return nil
 }
 func circleF(c *IconCursor, attrs []xml.Attr) error {
@@ -843,7 +842,7 @@ func circleF(c *IconCursor, attrs []xml.Attr) error {
 	if rx == 0 || ry == 0 { // not drawn, but not an error
 		return nil
 	}
-	c.EllipseAt(cx+c.curX, cy+c.curY, rx, ry)
+	c.ellipseAt(cx+c.curX, cy+c.curY, rx, ry)
 	return nil
 }
 func lineF(c *IconCursor, attrs []xml.Attr) error {
@@ -877,7 +876,7 @@ func polylineF(c *IconCursor, attrs []xml.Attr) error {
 	for _, attr := range attrs {
 		switch attr.Name.Local {
 		case "points":
-			err = c.GetPoints(attr.Value)
+			err = c.getPoints(attr.Value)
 			if len(c.points)%2 != 0 {
 				return errors.New("polygon has odd number of points")
 			}

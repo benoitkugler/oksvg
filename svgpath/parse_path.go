@@ -10,7 +10,9 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/srwiley/rasterx"
+	// "github.com/srwiley/rasterx"
+	// "github.com/srwiley/rasterx"
+
 	"golang.org/x/image/math/fixed"
 )
 
@@ -102,8 +104,8 @@ func parseFloat(s string, bitSize int) (float64, error) {
 	return strconv.ParseFloat(val, bitSize)
 }
 
-// ReadFloat reads a floating point value and adds it to the cursor's points slice.
-func (c *PathCursor) ReadFloat(numStr string) error {
+// readFloat reads a floating point value and adds it to the cursor's points slice.
+func (c *PathCursor) readFloat(numStr string) error {
 	last := 0
 	isFirst := true
 	for i, n := range numStr {
@@ -128,16 +130,16 @@ func (c *PathCursor) ReadFloat(numStr string) error {
 	return nil
 }
 
-// GetPoints reads a set of floating point values from the SVG format number string,
+// getPoints reads a set of floating point values from the SVG format number string,
 // and add them to the cursor's points slice.
-func (c *PathCursor) GetPoints(dataPoints string) error {
+func (c *PathCursor) getPoints(dataPoints string) error {
 	lastIndex := -1
 	c.points = c.points[0:0]
 	lr := ' '
 	for i, r := range dataPoints {
 		if unicode.IsNumber(r) == false && r != '.' && !(r == '-' && lr == 'e') && r != 'e' {
 			if lastIndex != -1 {
-				if err := c.ReadFloat(dataPoints[lastIndex:i]); err != nil {
+				if err := c.readFloat(dataPoints[lastIndex:i]); err != nil {
 					return err
 				}
 			}
@@ -152,7 +154,7 @@ func (c *PathCursor) GetPoints(dataPoints string) error {
 		lr = r
 	}
 	if lastIndex != -1 && lastIndex != len(dataPoints) {
-		if err := c.ReadFloat(dataPoints[lastIndex:]); err != nil {
+		if err := c.readFloat(dataPoints[lastIndex:]); err != nil {
 			return err
 		}
 	}
@@ -181,7 +183,7 @@ func (c *PathCursor) reflectControlCube() {
 // in the cursor's Path
 func (c *PathCursor) addSeg(segString string) error {
 	// Parse the string describing the numeric points in SVG format
-	if err := c.GetPoints(segString[1:]); err != nil {
+	if err := c.getPoints(segString[1:]); err != nil {
 		return err
 	}
 	l := len(c.points)
@@ -347,7 +349,7 @@ func (c *PathCursor) addSeg(segString string) error {
 				c.points[i+5] += c.placeX
 				c.points[i+6] += c.placeY
 			}
-			c.AddArcFromA(c.points[i:])
+			c.addArcFromA(c.points[i:])
 		}
 	default:
 		if c.ErrorMode == StrictErrorMode {
@@ -362,24 +364,24 @@ func (c *PathCursor) addSeg(segString string) error {
 	return nil
 }
 
-//EllipseAt adds a path of an elipse centered at cx, cy of radius rx and ry
+// ellipseAt adds a path of an elipse centered at cx, cy of radius rx and ry
 // to the PathCursor
-func (c *PathCursor) EllipseAt(cx, cy, rx, ry float64) {
+func (c *PathCursor) ellipseAt(cx, cy, rx, ry float64) {
 	c.placeX, c.placeY = cx+rx, cy
 	c.points = c.points[0:0]
 	c.points = append(c.points, rx, ry, 0.0, 1.0, 0.0, c.placeX, c.placeY)
 	c.path.Start(fixed.Point26_6{
 		X: fixed.Int26_6(c.placeX * 64),
 		Y: fixed.Int26_6(c.placeY * 64)})
-	c.placeX, c.placeY = rasterx.AddArc(c.points, cx, cy, c.placeX, c.placeY, &c.path)
+	c.placeX, c.placeY = c.path.addArc(c.points, cx, cy, c.placeX, c.placeY)
 	c.path.Stop(true)
 }
 
-//AddArcFromA adds a path of an arc element to the cursor path to the PathCursor
-func (c *PathCursor) AddArcFromA(points []float64) {
-	cx, cy := rasterx.FindEllipseCenter(&points[0], &points[1], points[2]*math.Pi/180, c.placeX,
+// addArcFromA adds a path of an arc element to the cursor path to the PathCursor
+func (c *PathCursor) addArcFromA(points []float64) {
+	cx, cy := findEllipseCenter(&points[0], &points[1], points[2]*math.Pi/180, c.placeX,
 		c.placeY, points[5], points[6], points[4] == 0, points[3] == 0)
-	c.placeX, c.placeY = rasterx.AddArc(c.points, cx+c.curX, cy+c.curY, c.placeX+c.curX, c.placeY+c.curY, &c.path)
+	c.placeX, c.placeY = c.path.addArc(c.points, cx+c.curX, cy+c.curY, c.placeX+c.curX, c.placeY+c.curY)
 }
 
 func (c *PathCursor) init() {
@@ -391,8 +393,7 @@ func (c *PathCursor) init() {
 	c.inPath = false
 }
 
-// CompilePath translates the svgPath description string into a rasterx path.
-// All valid SVG path elements are interpreted to rasterx equivalents.
+// CompilePath translates the svgPath description string into a path.
 // The resulting path element is stored in the PathCursor.
 func (c *PathCursor) CompilePath(svgPath string) error {
 	c.init()

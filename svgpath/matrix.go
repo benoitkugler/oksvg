@@ -158,33 +158,33 @@ func (a Matrix2D) Rotate(theta float64) Matrix2D {
 		F: 0})
 }
 
-// MatrixAdder is an adder that applies matrix M to all points
-type MatrixAdder struct {
-	Adder
-	M Matrix2D
+// matrixAdder is an adder that applies matrix M to all points
+type matrixAdder struct {
+	path *Path
+	M    Matrix2D
 }
 
 // Reset sets the matrix M to identity
-func (t *MatrixAdder) Reset() {
+func (t *matrixAdder) Reset() {
 	t.M = Identity
 }
 
 // Start starts a new path
-func (t *MatrixAdder) Start(a fixed.Point26_6) {
-	t.Adder.Start(t.M.TFixed(a))
+func (t *matrixAdder) Start(a fixed.Point26_6) {
+	t.path.Start(t.M.TFixed(a))
 }
 
 // Line adds a linear segment to the current curve.
-func (t *MatrixAdder) Line(b fixed.Point26_6) {
-	t.Adder.Line(t.M.TFixed(b))
+func (t *matrixAdder) Line(b fixed.Point26_6) {
+	t.path.Line(t.M.TFixed(b))
 }
 
 // QuadBezier adds a quadratic segment to the current curve.
-func (t *MatrixAdder) QuadBezier(b, c fixed.Point26_6) {
-	t.Adder.QuadBezier(t.M.TFixed(b), t.M.TFixed(c))
+func (t *matrixAdder) QuadBezier(b, c fixed.Point26_6) {
+	t.path.QuadBezier(t.M.TFixed(b), t.M.TFixed(c))
 }
 
 // CubeBezier adds a cubic segment to the current curve.
-func (t *MatrixAdder) CubeBezier(b, c, d fixed.Point26_6) {
-	t.Adder.CubeBezier(t.M.TFixed(b), t.M.TFixed(c), t.M.TFixed(d))
+func (t *matrixAdder) CubeBezier(b, c, d fixed.Point26_6) {
+	t.path.CubeBezier(t.M.TFixed(b), t.M.TFixed(c), t.M.TFixed(d))
 }
