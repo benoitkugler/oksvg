@@ -3,18 +3,15 @@ package svgpath
 import (
 	"io"
 	"os"
-	"strconv"
 	"strings"
 
 	"golang.org/x/net/html/charset"
 
 	"encoding/xml"
 	"errors"
-	"image/color"
 	"log"
 	"math"
 
-	"golang.org/x/image/colornames"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -31,7 +28,7 @@ type (
 		LineWidth, DashOffset, MiterLimit float64
 		Dash                              []float64
 		UseNonZeroWinding                 bool
-		fillerColor, linerColor           interface{} // either color.Color or Gradient
+		fillerColor, linerColor           Pattern // either PlainColor or Gradient
 		LineGap                           GapFunc
 		LeadLineCap                       CapFunc // This is used if different than LineCap
 		LineCap                           CapFunc
@@ -56,9 +53,9 @@ type (
 		Transform    Matrix2D
 	}
 
-	// IconCursor is used while parsing SVG files
-	IconCursor struct {
-		PathCursor
+	// iconCursor is used while parsing SVG files
+	iconCursor struct {
+		pathCursor
 		icon                                    *SvgIcon
 		StyleStack                              []PathStyle
 		grad                                    *Gradient
@@ -76,7 +73,7 @@ type (
 // DefaultStyle sets the default PathStyle to fill black, winding rule,
 // full opacity, no stroke, ButtCap line end and Bevel line connect.
 var DefaultStyle = PathStyle{1.0, 1.0, 2.0, 0.0, 4.0, nil, true,
-	color.NRGBA{0x00, 0x00, 0x00, 0xff}, nil,
+	NewPlainColor(0x00, 0x00, 0x00, 0xff), nil,
 	nil, nil, ButtCap, Bevel, Identity}
 
 // // Draw the compiled SVG icon into the GraphicContext.
@@ -164,95 +161,7 @@ func (s *SvgIcon) SetTarget(x, y, w, h float64) {
 // 	}
 // }
 
-// ParseSVGColorNum reads the SFG color string e.g. #FBD9BD
-func ParseSVGColorNum(colorStr string) (r, g, b uint8, err error) {
-	colorStr = strings.TrimPrefix(colorStr, "#")
-	var t uint64
-	if len(colorStr) != 6 {
-		// SVG specs say duplicate characters in case of 3 digit hex number
-		colorStr = string([]byte{colorStr[0], colorStr[0],
-			colorStr[1], colorStr[1], colorStr[2], colorStr[2]})
-	}
-	for _, v := range []struct {
-		c *uint8
-		s string
-	}{
-		{&r, colorStr[0:2]},
-		{&g, colorStr[2:4]},
-		{&b, colorStr[4:6]}} {
-		t, err = strconv.ParseUint(v.s, 16, 8)
-		if err != nil {
-			return
-		}
-		*v.c = uint8(t)
-	}
-	return
-}
-
-// ParseSVGColor parses an SVG color string in all forms
-// including all SVG1.1 names, obtained from the colornames package
-func ParseSVGColor(colorStr string) (color.Color, error) {
-	//_, _, _, a := curColor.RGBA()
-	v := strings.ToLower(colorStr)
-	if strings.HasPrefix(v, "url") { // We are not handling urls
-		// and gradients and stuff at this point
-		return color.NRGBA{0, 0, 0, 255}, nil
-	}
-	switch v {
-	case "none":
-		// nil signals that the function (fill or stroke) is off;
-		// not the same as black
-		return nil, nil
-	default:
-		cn, ok := colornames.Map[v]
-		if ok {
-			r, g, b, a := cn.RGBA()
-			return color.NRGBA{uint8(r), uint8(g), uint8(b), uint8(a)}, nil
-		}
-	}
-	cStr := strings.TrimPrefix(colorStr, "rgb(")
-	if cStr != colorStr {
-		cStr := strings.TrimSuffix(cStr, ")")
-		vals := strings.Split(cStr, ",")
-		if len(vals) != 3 {
-			return color.NRGBA{}, errParamMismatch
-		}
-		var cvals [3]uint8
-		var err error
-		for i := range cvals {
-			cvals[i], err = parseColorValue(vals[i])
-			if err != nil {
-				return nil, err
-			}
-		}
-		return color.NRGBA{cvals[0], cvals[1], cvals[2], 0xFF}, nil
-	}
-	if colorStr[0] == '#' {
-		r, g, b, err := ParseSVGColorNum(colorStr)
-		if err != nil {
-			return nil, err
-		}
-		return color.NRGBA{r, g, b, 0xFF}, nil
-	}
-	return nil, errParamMismatch
-}
-
-func parseColorValue(v string) (uint8, error) {
-	if v[len(v)-1] == '%' {
-		n, err := strconv.Atoi(strings.TrimSpace(v[:len(v)-1]))
-		if err != nil {
-			return 0, err
-		}
-		return uint8(n * 0xFF / 100), nil
-	}
-	n, err := strconv.Atoi(strings.TrimSpace(v))
-	if n > 255 {
-		n = 255
-	}
-	return uint8(n), err
-}
-
-func (c *IconCursor) readTransformAttr(m1 Matrix2D, k string) (Matrix2D, error) {
+func (c *iconCursor) readTransformAttr(m1 Matrix2D, k string) (Matrix2D, error) {
 	ln := len(c.points)
 	switch k {
 	case "rotate":
@@ -311,7 +220,7 @@ func (c *IconCursor) readTransformAttr(m1 Matrix2D, k string) (Matrix2D, error) 
 	return m1, nil
 }
 
-func (c *IconCursor) parseTransform(v string) (Matrix2D, error) {
+func (c *iconCursor) parseTransform(v string) (Matrix2D, error) {
 	ts := strings.Split(v, ")")
 	m1 := c.StyleStack[len(c.StyleStack)-1].transform
 	for _, t := range ts {
@@ -335,32 +244,28 @@ func (c *IconCursor) parseTransform(v string) (Matrix2D, error) {
 	return m1, nil
 }
 
-func (c *IconCursor) readStyleAttr(curStyle *PathStyle, k, v string) error {
+func (c *iconCursor) readStyleAttr(curStyle *PathStyle, k, v string) error {
 	switch k {
 	case "fill":
-		gradient, ok := c.ReadGradURL(v, curStyle.fillerColor)
+		gradient, ok := c.readGradURL(v, curStyle.fillerColor)
 		if ok {
 			curStyle.fillerColor = gradient
 			break
 		}
-		var err error
-		curStyle.fillerColor, err = ParseSVGColor(v)
+		optCol, err := parseSVGColor(v)
+		curStyle.fillerColor = optCol.asPattern()
 		return err
 	case "stroke":
-		gradient, ok := c.ReadGradURL(v, curStyle.linerColor)
+		gradient, ok := c.readGradURL(v, curStyle.linerColor)
 		if ok {
 			curStyle.linerColor = gradient
 			break
 		}
-		col, errc := ParseSVGColor(v)
+		col, errc := parseSVGColor(v)
 		if errc != nil {
 			return errc
 		}
-		if col != nil {
-			curStyle.linerColor = col.(color.NRGBA)
-		} else {
-			curStyle.linerColor = nil
-		}
+		curStyle.linerColor = col.asPattern()
 	case "stroke-linegap":
 		switch v {
 		case "flat":
@@ -466,10 +371,10 @@ func (c *IconCursor) readStyleAttr(curStyle *PathStyle, k, v string) error {
 	return nil
 }
 
-// PushStyle parses the style element, and push it on the style stack. Only color and opacity are supported
+// pushStyle parses the style element, and push it on the style stack. Only color and opacity are supported
 // for fill. Note that this parses both the contents of a style attribute plus
 // direct fill and opacity attributes.
-func (c *IconCursor) PushStyle(attrs []xml.Attr) error {
+func (c *iconCursor) pushStyle(attrs []xml.Attr) error {
 	var pairs []string
 	for _, attr := range attrs {
 		switch strings.ToLower(attr.Name.Local) {
@@ -505,7 +410,7 @@ func splitOnCommaOrSpace(s string) []string {
 		})
 }
 
-func (c *IconCursor) readStartElement(se xml.StartElement) (err error) {
+func (c *iconCursor) readStartElement(se xml.StartElement) (err error) {
 	var skipDef bool
 	if se.Name.Local == "radialGradient" || se.Name.Local == "linearGradient" || c.inGrad {
 		skipDef = true
@@ -558,7 +463,7 @@ func (c *IconCursor) readStartElement(se xml.StartElement) (err error) {
 // the default if no ErrorMode value is provided.
 func ReadIconStream(stream io.Reader, errMode ...ErrorMode) (*SvgIcon, error) {
 	icon := &SvgIcon{Defs: make(map[string][]definition), Grads: make(map[string]*Gradient), Transform: Identity}
-	cursor := &IconCursor{StyleStack: []PathStyle{DefaultStyle}, icon: icon}
+	cursor := &iconCursor{StyleStack: []PathStyle{DefaultStyle}, icon: icon}
 	if len(errMode) > 0 {
 		cursor.ErrorMode = errMode[0]
 	}
@@ -577,7 +482,7 @@ func ReadIconStream(stream io.Reader, errMode ...ErrorMode) (*SvgIcon, error) {
 		case xml.StartElement:
 			// Reads all recognized style attributes from the start element
 			// and places it on top of the styleStack
-			err = cursor.PushStyle(se.Attr)
+			err = cursor.pushStyle(se.Attr)
 			if err != nil {
 				return icon, err
 			}
@@ -609,10 +514,10 @@ func ReadIconStream(stream io.Reader, errMode ...ErrorMode) (*SvgIcon, error) {
 				cursor.inGrad = false
 			}
 		case xml.CharData:
-			if cursor.inTitleText == true {
+			if cursor.inTitleText {
 				icon.Titles[len(icon.Titles)-1] += string(se)
 			}
-			if cursor.inDescText == true {
+			if cursor.inDescText {
 				icon.Descriptions[len(icon.Descriptions)-1] += string(se)
 			}
 		}
@@ -653,88 +558,7 @@ func readFraction(v string) (f float64, err error) {
 	return
 }
 
-// getColor is a helper function to get the background color
-// if ReadGradUrl needs it.
-func getColor(clr interface{}) color.Color {
-	switch c := clr.(type) {
-	case Gradient: // This is a bit lazy but oh well
-		for _, s := range c.Stops {
-			if s.StopColor != nil {
-				return s.StopColor
-			}
-		}
-	case color.NRGBA:
-		return c
-	}
-	return colornames.Black
-}
-
-func localizeGradIfStopClrNil(g *Gradient, defaultColor interface{}) Gradient {
-	grad := *g
-	for _, s := range grad.Stops {
-		if s.StopColor == nil { // This means we need copy the gradient's Stop slice
-			// and fill in the default color
-
-			// Copy the stops
-			stops := append([]GradStop{}, grad.Stops...)
-			grad.Stops = stops
-			// Use the background color when a stop color is nil
-			clr := getColor(defaultColor)
-			for i, s := range stops {
-				if s.StopColor == nil {
-					grad.Stops[i].StopColor = clr
-				}
-			}
-			break // Only need to do this once
-		}
-	}
-	return grad
-}
-
-// ReadGradURL reads an SVG format gradient url
-// Since the context of the gradient can affect the colors
-// the current fill or line color is passed in and used in
-// the case of a nil stopClor value
-func (c *IconCursor) ReadGradURL(v string, defaultColor interface{}) (grad Gradient, ok bool) {
-	if strings.HasPrefix(v, "url(") && strings.HasSuffix(v, ")") {
-		urlStr := strings.TrimSpace(v[4 : len(v)-1])
-		if strings.HasPrefix(urlStr, "#") {
-			var g *Gradient
-			g, ok = c.icon.Grads[urlStr[1:]]
-			if ok {
-				grad = localizeGradIfStopClrNil(g, defaultColor)
-			}
-		}
-	}
-	return
-}
-
-// ReadGradAttr reads an SVG gradient attribute
-func (c *IconCursor) ReadGradAttr(attr xml.Attr) (err error) {
-	switch attr.Name.Local {
-	case "gradientTransform":
-		c.grad.Matrix, err = c.parseTransform(attr.Value)
-	case "gradientUnits":
-		switch strings.TrimSpace(attr.Value) {
-		case "userSpaceOnUse":
-			c.grad.Units = UserSpaceOnUse
-		case "objectBoundingBox":
-			c.grad.Units = ObjectBoundingBox
-		}
-	case "spreadMethod":
-		switch strings.TrimSpace(attr.Value) {
-		case "pad":
-			c.grad.Spread = PadSpread
-		case "reflect":
-			c.grad.Spread = ReflectSpread
-		case "repeat":
-			c.grad.Spread = RepeatSpread
-		}
-	}
-	return
-}
-
-type svgFunc func(c *IconCursor, attrs []xml.Attr) error
+type svgFunc func(c *iconCursor, attrs []xml.Attr) error
 
 var drawFuncs = map[string]svgFunc{
 	"svg":            svgF,
@@ -754,7 +578,7 @@ var drawFuncs = map[string]svgFunc{
 	"radialGradient": radialGradientF,
 }
 
-func svgF(c *IconCursor, attrs []xml.Attr) error {
+func svgF(c *iconCursor, attrs []xml.Attr) error {
 	c.icon.ViewBox.X = 0
 	c.icon.ViewBox.Y = 0
 	c.icon.ViewBox.W = 0
@@ -789,8 +613,8 @@ func svgF(c *IconCursor, attrs []xml.Attr) error {
 	}
 	return nil
 }
-func gF(*IconCursor, []xml.Attr) error { return nil } // g does nothing but push the style
-func rectF(c *IconCursor, attrs []xml.Attr) error {
+func gF(*iconCursor, []xml.Attr) error { return nil } // g does nothing but push the style
+func rectF(c *iconCursor, attrs []xml.Attr) error {
 	var x, y, w, h, rx, ry float64
 	var err error
 	for _, attr := range attrs {
@@ -818,7 +642,7 @@ func rectF(c *IconCursor, attrs []xml.Attr) error {
 	c.path.addRoundRect(x+c.curX, y+c.curY, w+x+c.curX, h+y+c.curY, rx, ry, 0)
 	return nil
 }
-func circleF(c *IconCursor, attrs []xml.Attr) error {
+func circleF(c *iconCursor, attrs []xml.Attr) error {
 	var cx, cy, rx, ry float64
 	var err error
 	for _, attr := range attrs {
@@ -845,7 +669,7 @@ func circleF(c *IconCursor, attrs []xml.Attr) error {
 	c.ellipseAt(cx+c.curX, cy+c.curY, rx, ry)
 	return nil
 }
-func lineF(c *IconCursor, attrs []xml.Attr) error {
+func lineF(c *iconCursor, attrs []xml.Attr) error {
 	var x1, x2, y1, y2 float64
 	var err error
 	for _, attr := range attrs {
@@ -871,7 +695,7 @@ func lineF(c *IconCursor, attrs []xml.Attr) error {
 		Y: fixed.Int26_6((y2 + c.curY) * 64)})
 	return nil
 }
-func polylineF(c *IconCursor, attrs []xml.Attr) error {
+func polylineF(c *iconCursor, attrs []xml.Attr) error {
 	var err error
 	for _, attr := range attrs {
 		switch attr.Name.Local {
@@ -897,19 +721,19 @@ func polylineF(c *IconCursor, attrs []xml.Attr) error {
 	}
 	return nil
 }
-func polygonF(c *IconCursor, attrs []xml.Attr) error {
+func polygonF(c *iconCursor, attrs []xml.Attr) error {
 	err := polylineF(c, attrs)
 	if len(c.points) > 4 {
 		c.path.Stop(true)
 	}
 	return err
 }
-func pathF(c *IconCursor, attrs []xml.Attr) error {
+func pathF(c *iconCursor, attrs []xml.Attr) error {
 	var err error
 	for _, attr := range attrs {
 		switch attr.Name.Local {
 		case "d":
-			err = c.CompilePath(attr.Value)
+			err = c.compilePath(attr.Value)
 		}
 		if err != nil {
 			return err
@@ -917,21 +741,21 @@ func pathF(c *IconCursor, attrs []xml.Attr) error {
 	}
 	return nil
 }
-func descF(c *IconCursor, attrs []xml.Attr) error {
+func descF(c *iconCursor, attrs []xml.Attr) error {
 	c.inDescText = true
 	c.icon.Descriptions = append(c.icon.Descriptions, "")
 	return nil
 }
-func titleF(c *IconCursor, attrs []xml.Attr) error {
+func titleF(c *iconCursor, attrs []xml.Attr) error {
 	c.inTitleText = true
 	c.icon.Titles = append(c.icon.Titles, "")
 	return nil
 }
-func defsF(c *IconCursor, attrs []xml.Attr) error {
+func defsF(c *iconCursor, attrs []xml.Attr) error {
 	c.inDefs = true
 	return nil
 }
-func linearGradientF(c *IconCursor, attrs []xml.Attr) error {
+func linearGradientF(c *iconCursor, attrs []xml.Attr) error {
 	var err error
 	c.inGrad = true
 	direction := Linear{0, 0, 1, 0}
@@ -954,7 +778,7 @@ func linearGradientF(c *IconCursor, attrs []xml.Attr) error {
 		case "y2":
 			direction[3], err = readFraction(attr.Value)
 		default:
-			err = c.ReadGradAttr(attr)
+			err = c.readGradAttr(attr)
 		}
 		if err != nil {
 			return err
@@ -964,7 +788,7 @@ func linearGradientF(c *IconCursor, attrs []xml.Attr) error {
 	return nil
 }
 
-func radialGradientF(c *IconCursor, attrs []xml.Attr) error {
+func radialGradientF(c *iconCursor, attrs []xml.Attr) error {
 	c.inGrad = true
 	direction := Radial{0.5, 0.5, 0.5, 0.5, 0.5, 0.5}
 	c.grad = &Gradient{Direction: direction, Bounds: c.icon.ViewBox, Matrix: Identity}
@@ -994,21 +818,21 @@ func radialGradientF(c *IconCursor, attrs []xml.Attr) error {
 		case "fr":
 			direction[5], err = readFraction(attr.Value)
 		default:
-			err = c.ReadGradAttr(attr)
+			err = c.readGradAttr(attr)
 		}
 		if err != nil {
 			return err
 		}
 	}
-	if setFx == false { // set fx to cx by default
+	if !setFx { // set fx to cx by default
 		direction[2] = direction[0]
 	}
-	if setFy == false { // set fy to cy by default
+	if !setFy { // set fy to cy by default
 		direction[3] = direction[1]
 	}
 	return nil
 }
-func stopF(c *IconCursor, attrs []xml.Attr) error {
+func stopF(c *iconCursor, attrs []xml.Attr) error {
 	var err error
 	if c.inGrad {
 		stop := GradStop{Opacity: 1.0}
@@ -1018,7 +842,9 @@ func stopF(c *IconCursor, attrs []xml.Attr) error {
 				stop.Offset, err = readFraction(attr.Value)
 			case "stop-color":
 				//todo: add current color inherit
-				stop.StopColor, err = ParseSVGColor(attr.Value)
+				var optColor optionnalColor
+				optColor, err = parseSVGColor(attr.Value)
+				stop.StopColor = optColor.asColor()
 			case "stop-opacity":
 				stop.Opacity, err = parseFloat(attr.Value, 64)
 			}
@@ -1030,7 +856,7 @@ func stopF(c *IconCursor, attrs []xml.Attr) error {
 	}
 	return nil
 }
-func useF(c *IconCursor, attrs []xml.Attr) error {
+func useF(c *iconCursor, attrs []xml.Attr) error {
 	var (
 		href string
 		x, y float64
@@ -1069,7 +895,7 @@ func useF(c *IconCursor, attrs []xml.Attr) error {
 			c.StyleStack = c.StyleStack[:len(c.StyleStack)-1]
 			continue
 		}
-		if err = c.PushStyle(def.Attrs); err != nil {
+		if err = c.pushStyle(def.Attrs); err != nil {
 			return err
 		}
 		df, ok := drawFuncs[def.Tag]

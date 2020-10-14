@@ -28,8 +28,8 @@ const (
 	StrictErrorMode
 )
 
-// PathCursor is used to parse SVG format path strings into a Path
-type PathCursor struct {
+// pathCursor is used to parse SVG format path strings into a Path
+type pathCursor struct {
 	path                   Path
 	placeX, placeY         float64
 	curX, curY             float64
@@ -52,14 +52,14 @@ func reflect(px, py, rx, ry float64) (x, y float64) {
 	return px*2 - rx, py*2 - ry
 }
 
-func (c *PathCursor) valsToAbs(last float64) {
+func (c *pathCursor) valsToAbs(last float64) {
 	for i := 0; i < len(c.points); i++ {
 		last += c.points[i]
 		c.points[i] = last
 	}
 }
 
-func (c *PathCursor) pointsToAbs(sz int) {
+func (c *pathCursor) pointsToAbs(sz int) {
 	lastX := c.placeX
 	lastY := c.placeY
 	for j := 0; j < len(c.points); j += sz {
@@ -72,7 +72,7 @@ func (c *PathCursor) pointsToAbs(sz int) {
 	}
 }
 
-func (c *PathCursor) hasSetsOrMore(sz int, rel bool) bool {
+func (c *pathCursor) hasSetsOrMore(sz int, rel bool) bool {
 	if !(len(c.points) >= sz && len(c.points)%sz == 0) {
 		return false
 	}
@@ -105,12 +105,12 @@ func parseFloat(s string, bitSize int) (float64, error) {
 }
 
 // readFloat reads a floating point value and adds it to the cursor's points slice.
-func (c *PathCursor) readFloat(numStr string) error {
+func (c *pathCursor) readFloat(numStr string) error {
 	last := 0
 	isFirst := true
 	for i, n := range numStr {
 		if n == '.' {
-			if isFirst == true {
+			if isFirst {
 				isFirst = false
 				continue
 			}
@@ -132,12 +132,12 @@ func (c *PathCursor) readFloat(numStr string) error {
 
 // getPoints reads a set of floating point values from the SVG format number string,
 // and add them to the cursor's points slice.
-func (c *PathCursor) getPoints(dataPoints string) error {
+func (c *pathCursor) getPoints(dataPoints string) error {
 	lastIndex := -1
 	c.points = c.points[0:0]
 	lr := ' '
 	for i, r := range dataPoints {
-		if unicode.IsNumber(r) == false && r != '.' && !(r == '-' && lr == 'e') && r != 'e' {
+		if !unicode.IsNumber(r) && r != '.' && !(r == '-' && lr == 'e') && r != 'e' {
 			if lastIndex != -1 {
 				if err := c.readFloat(dataPoints[lastIndex:i]); err != nil {
 					return err
@@ -161,7 +161,7 @@ func (c *PathCursor) getPoints(dataPoints string) error {
 	return nil
 }
 
-func (c *PathCursor) reflectControlQuad() {
+func (c *pathCursor) reflectControlQuad() {
 	switch c.lastKey {
 	case 'q', 'Q', 'T', 't':
 		c.cntlPtX, c.cntlPtY = reflect(c.placeX, c.placeY, c.cntlPtX, c.cntlPtY)
@@ -170,7 +170,7 @@ func (c *PathCursor) reflectControlQuad() {
 	}
 }
 
-func (c *PathCursor) reflectControlCube() {
+func (c *pathCursor) reflectControlCube() {
 	switch c.lastKey {
 	case 'c', 'C', 's', 'S':
 		c.cntlPtX, c.cntlPtY = reflect(c.placeX, c.placeY, c.cntlPtX, c.cntlPtY)
@@ -181,7 +181,7 @@ func (c *PathCursor) reflectControlCube() {
 
 // addSeg decodes an SVG seqment string into equivalent raster path commands saved
 // in the cursor's Path
-func (c *PathCursor) addSeg(segString string) error {
+func (c *pathCursor) addSeg(segString string) error {
 	// Parse the string describing the numeric points in SVG format
 	if err := c.getPoints(segString[1:]); err != nil {
 		return err
@@ -365,8 +365,8 @@ func (c *PathCursor) addSeg(segString string) error {
 }
 
 // ellipseAt adds a path of an elipse centered at cx, cy of radius rx and ry
-// to the PathCursor
-func (c *PathCursor) ellipseAt(cx, cy, rx, ry float64) {
+// to the pathCursor
+func (c *pathCursor) ellipseAt(cx, cy, rx, ry float64) {
 	c.placeX, c.placeY = cx+rx, cy
 	c.points = c.points[0:0]
 	c.points = append(c.points, rx, ry, 0.0, 1.0, 0.0, c.placeX, c.placeY)
@@ -377,14 +377,14 @@ func (c *PathCursor) ellipseAt(cx, cy, rx, ry float64) {
 	c.path.Stop(true)
 }
 
-// addArcFromA adds a path of an arc element to the cursor path to the PathCursor
-func (c *PathCursor) addArcFromA(points []float64) {
+// addArcFromA adds a path of an arc element to the cursor path to the pathCursor
+func (c *pathCursor) addArcFromA(points []float64) {
 	cx, cy := findEllipseCenter(&points[0], &points[1], points[2]*math.Pi/180, c.placeX,
 		c.placeY, points[5], points[6], points[4] == 0, points[3] == 0)
 	c.placeX, c.placeY = c.path.addArc(c.points, cx+c.curX, cy+c.curY, c.placeX+c.curX, c.placeY+c.curY)
 }
 
-func (c *PathCursor) init() {
+func (c *pathCursor) init() {
 	c.placeX = 0.0
 	c.placeY = 0.0
 	c.points = c.points[0:0]
@@ -393,9 +393,9 @@ func (c *PathCursor) init() {
 	c.inPath = false
 }
 
-// CompilePath translates the svgPath description string into a path.
-// The resulting path element is stored in the PathCursor.
-func (c *PathCursor) CompilePath(svgPath string) error {
+// compilePath translates the svgPath description string into a path.
+// The resulting path element is stored in the pathCursor.
+func (c *pathCursor) compilePath(svgPath string) error {
 	c.init()
 	lastIndex := -1
 	for i, v := range svgPath {
