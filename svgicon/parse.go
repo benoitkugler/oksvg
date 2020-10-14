@@ -1,4 +1,4 @@
-package svgpath
+package svgicon
 
 import (
 	"io"
@@ -75,91 +75,6 @@ type (
 var DefaultStyle = PathStyle{1.0, 1.0, 2.0, 0.0, 4.0, nil, true,
 	NewPlainColor(0x00, 0x00, 0x00, 0xff), nil,
 	nil, nil, ButtCap, Bevel, Identity}
-
-// // Draw the compiled SVG icon into the GraphicContext.
-// // All elements should be contained by the Bounds rectangle of the SvgIcon.
-// func (s *SvgIcon) Draw(r *rasterx.Dasher, opacity float64) {
-// 	for _, svgp := range s.SVGPaths {
-// 		svgp.DrawTransformed(r, opacity, s.Transform)
-// 	}
-// }
-
-// SetTarget sets the Transform matrix to draw within the bounds of the rectangle arguments
-func (s *SvgIcon) SetTarget(x, y, w, h float64) {
-	scaleW := w / s.ViewBox.W
-	scaleH := h / s.ViewBox.H
-	s.Transform = Identity.Translate(x-s.ViewBox.X, y-s.ViewBox.Y).Scale(scaleW, scaleH)
-}
-
-// // Draw the compiled SvgPath into the Dasher.
-// func (svgp *SvgPath) Draw(r *rasterx.Dasher, opacity float64) {
-// 	svgp.DrawTransformed(r, opacity, Identity)
-// }
-
-// // DrawTransformed draws the compiled SvgPath into the Dasher while applying transform t.
-// func (svgp *SvgPath) DrawTransformed(r *rasterx.Dasher, opacity float64, t Matrix2D) {
-// 	m := svgp.transform
-// 	svgp.transform = t.Mult(m)
-// 	defer func() { svgp.transform = m }() // Restore untransformed matrix
-// 	if svgp.FillerColor != nil {
-// 		r.Clear()
-// 		rf := &r.Filler
-// 		rf.SetWinding(svgp.UseNonZeroWinding)
-// 		svgp.mAdder.Adder = rf // This allows transformations to be applied
-// 		svgp.Path.AddTo(&svgp.mAdder)
-
-// 		switch FillerColor := svgp.FillerColor.(type) {
-// 		case color.Color:
-// 			rf.SetColor(rasterx.ApplyOpacity(FillerColor, svgp.FillOpacity*opacity))
-// 		case Gradient:
-// 			if FillerColor.Units == rasterx.ObjectBoundingBox {
-// 				fRect := rf.Scanner.GetPathExtent()
-// 				mnx, mny := float64(fRect.Min.X)/64, float64(fRect.Min.Y)/64
-// 				mxx, mxy := float64(fRect.Max.X)/64, float64(fRect.Max.Y)/64
-// 				FillerColor.Bounds.X, FillerColor.Bounds.Y = mnx, mny
-// 				FillerColor.Bounds.W, FillerColor.Bounds.H = mxx-mnx, mxy-mny
-// 			}
-// 			rf.SetColor(FillerColor.GetColorFunction(svgp.FillOpacity * opacity))
-// 		}
-// 		rf.Draw()
-// 		// default is true
-// 		rf.SetWinding(true)
-// 	}
-// 	if svgp.LinerColor != nil {
-// 		r.Clear()
-// 		svgp.mAdder.Adder = r
-// 		lineGap := svgp.LineGap
-// 		if lineGap == nil {
-// 			lineGap = DefaultStyle.LineGap
-// 		}
-// 		lineCap := svgp.LineCap
-// 		if lineCap == nil {
-// 			lineCap = DefaultStyle.LineCap
-// 		}
-// 		leadLineCap := lineCap
-// 		if svgp.LeadLineCap != nil {
-// 			leadLineCap = svgp.LeadLineCap
-// 		}
-// 		r.SetStroke(fixed.Int26_6(svgp.LineWidth*64),
-// 			fixed.Int26_6(svgp.MiterLimit*64), leadLineCap, lineCap,
-// 			lineGap, svgp.LineJoin, svgp.Dash, svgp.DashOffset)
-// 		svgp.Path.AddTo(&svgp.mAdder)
-// 		switch LinerColor := svgp.LinerColor.(type) {
-// 		case color.Color:
-// 			r.SetColor(rasterx.ApplyOpacity(LinerColor, svgp.LineOpacity*opacity))
-// 		case Gradient:
-// 			if LinerColor.Units == rasterx.ObjectBoundingBox {
-// 				fRect := r.Scanner.GetPathExtent()
-// 				mnx, mny := float64(fRect.Min.X)/64, float64(fRect.Min.Y)/64
-// 				mxx, mxy := float64(fRect.Max.X)/64, float64(fRect.Max.Y)/64
-// 				LinerColor.Bounds.X, LinerColor.Bounds.Y = mnx, mny
-// 				LinerColor.Bounds.W, LinerColor.Bounds.H = mxx-mnx, mxy-mny
-// 			}
-// 			r.SetColor(LinerColor.GetColorFunction(svgp.LineOpacity * opacity))
-// 		}
-// 		r.Draw()
-// 	}
-// }
 
 func (c *iconCursor) readTransformAttr(m1 Matrix2D, k string) (Matrix2D, error) {
 	ln := len(c.points)

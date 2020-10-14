@@ -1,4 +1,4 @@
-package svgpath
+package svgicon
 
 // svgd.go implements translation of an SVG2.0 path into a Path.
 

@@ -1,7 +1,7 @@
 // Implements an abstract representation of
 // svg paths, which can then be consumed
 // by painting driver
-package svgpath
+package svgicon
 
 import (
 	"fmt"
@@ -26,18 +26,15 @@ import (
 
 type pathCommand uint8
 
-// Human readable path constants
-const (
-	pathMoveTo pathCommand = iota
-	pathLineTo
-	pathQuadTo
-	pathCubicTo
-	pathClose
-)
-
 // Operation groups the different SVG commands
 type Operation interface {
-	command() pathCommand
+	// fill itself on the driver `d`, using the context in `f`
+	// after apllying the transform `M`
+	fill(f *filler, d Driver, M Matrix2D)
+
+	// stroke itself on the driver `d`, using the context in `f`
+	// after apllying the transform `M`
+	stroke(f *stroker, d Driver, M Matrix2D)
 }
 
 type MoveTo fixed.Point26_6
@@ -49,12 +46,6 @@ type QuadTo [2]fixed.Point26_6
 type CubicTo [3]fixed.Point26_6
 
 type Close struct{}
-
-func (MoveTo) command() pathCommand  { return pathMoveTo }
-func (LineTo) command() pathCommand  { return pathLineTo }
-func (QuadTo) command() pathCommand  { return pathQuadTo }
-func (CubicTo) command() pathCommand { return pathCubicTo }
-func (Close) command() pathCommand   { return pathClose }
 
 // Path describes a sequence of basic SVG operations, which should not be nil
 // Higher-level shapes may be reduced to a path.

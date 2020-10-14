@@ -1,4 +1,4 @@
-package svgpath
+package svgicon
 
 import (
 	"testing"

@@ -2,7 +2,7 @@
 //
 // created: 2017 by S.R.Wiley
 
-package svgpath
+package svgicon
 
 import (
 	"math"

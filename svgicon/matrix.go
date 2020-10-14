@@ -1,4 +1,4 @@
-package svgpath
+package svgicon
 
 // Implements SVG style matrix transformations.
 // https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/transform
@@ -158,7 +158,7 @@ func (a Matrix2D) Rotate(theta float64) Matrix2D {
 		F: 0})
 }
 
-// matrixAdder is an adder that applies matrix M to all points
+// matrixAdder add points to path after applying a  matrix M to all points
 type matrixAdder struct {
 	path *Path
 	M    Matrix2D
@@ -187,4 +187,20 @@ func (t *matrixAdder) QuadBezier(b, c fixed.Point26_6) {
 // CubeBezier adds a cubic segment to the current curve.
 func (t *matrixAdder) CubeBezier(b, c, d fixed.Point26_6) {
 	t.path.CubeBezier(t.M.TFixed(b), t.M.TFixed(c), t.M.TFixed(d))
+}
+
+// transform the operation by applying `t`
+func (t Matrix2D) trMove(m MoveTo) fixed.Point26_6 { return t.TFixed(fixed.Point26_6(m)) }
+
+// transform the operation by applying `t`
+func (t Matrix2D) trLine(m LineTo) fixed.Point26_6 { return t.TFixed(fixed.Point26_6(m)) }
+
+// transform the operation by applying `t`
+func (t Matrix2D) trQuad(m QuadTo) (fixed.Point26_6, fixed.Point26_6) {
+	return t.TFixed(fixed.Point26_6(m[0])), t.TFixed(fixed.Point26_6(m[1]))
+}
+
+// transform the operation by applying `t`
+func (t Matrix2D) trCubic(m CubicTo) (fixed.Point26_6, fixed.Point26_6, fixed.Point26_6) {
+	return t.TFixed(fixed.Point26_6(m[0])), t.TFixed(fixed.Point26_6(m[1])), t.TFixed(fixed.Point26_6(m[2]))
 }
