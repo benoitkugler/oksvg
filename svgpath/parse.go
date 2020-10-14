@@ -28,7 +28,7 @@ type (
 		LineWidth, DashOffset, MiterLimit float64
 		Dash                              []float64
 		UseNonZeroWinding                 bool
-		fillerColor, linerColor           Pattern // either PlainColor or Gradient
+		FillerColor, LinerColor           Pattern // either PlainColor or Gradient
 		LineGap                           GapFunc
 		LeadLineCap                       CapFunc // This is used if different than LineCap
 		LineCap                           CapFunc
@@ -57,7 +57,7 @@ type (
 	iconCursor struct {
 		pathCursor
 		icon                                    *SvgIcon
-		StyleStack                              []PathStyle
+		styleStack                              []PathStyle
 		grad                                    *Gradient
 		inTitleText, inDescText, inGrad, inDefs bool
 		currentDef                              []definition
@@ -101,31 +101,31 @@ func (s *SvgIcon) SetTarget(x, y, w, h float64) {
 // 	m := svgp.transform
 // 	svgp.transform = t.Mult(m)
 // 	defer func() { svgp.transform = m }() // Restore untransformed matrix
-// 	if svgp.fillerColor != nil {
+// 	if svgp.FillerColor != nil {
 // 		r.Clear()
 // 		rf := &r.Filler
 // 		rf.SetWinding(svgp.UseNonZeroWinding)
 // 		svgp.mAdder.Adder = rf // This allows transformations to be applied
 // 		svgp.Path.AddTo(&svgp.mAdder)
 
-// 		switch fillerColor := svgp.fillerColor.(type) {
+// 		switch FillerColor := svgp.FillerColor.(type) {
 // 		case color.Color:
-// 			rf.SetColor(rasterx.ApplyOpacity(fillerColor, svgp.FillOpacity*opacity))
+// 			rf.SetColor(rasterx.ApplyOpacity(FillerColor, svgp.FillOpacity*opacity))
 // 		case Gradient:
-// 			if fillerColor.Units == rasterx.ObjectBoundingBox {
+// 			if FillerColor.Units == rasterx.ObjectBoundingBox {
 // 				fRect := rf.Scanner.GetPathExtent()
 // 				mnx, mny := float64(fRect.Min.X)/64, float64(fRect.Min.Y)/64
 // 				mxx, mxy := float64(fRect.Max.X)/64, float64(fRect.Max.Y)/64
-// 				fillerColor.Bounds.X, fillerColor.Bounds.Y = mnx, mny
-// 				fillerColor.Bounds.W, fillerColor.Bounds.H = mxx-mnx, mxy-mny
+// 				FillerColor.Bounds.X, FillerColor.Bounds.Y = mnx, mny
+// 				FillerColor.Bounds.W, FillerColor.Bounds.H = mxx-mnx, mxy-mny
 // 			}
-// 			rf.SetColor(fillerColor.GetColorFunction(svgp.FillOpacity * opacity))
+// 			rf.SetColor(FillerColor.GetColorFunction(svgp.FillOpacity * opacity))
 // 		}
 // 		rf.Draw()
 // 		// default is true
 // 		rf.SetWinding(true)
 // 	}
-// 	if svgp.linerColor != nil {
+// 	if svgp.LinerColor != nil {
 // 		r.Clear()
 // 		svgp.mAdder.Adder = r
 // 		lineGap := svgp.LineGap
@@ -144,18 +144,18 @@ func (s *SvgIcon) SetTarget(x, y, w, h float64) {
 // 			fixed.Int26_6(svgp.MiterLimit*64), leadLineCap, lineCap,
 // 			lineGap, svgp.LineJoin, svgp.Dash, svgp.DashOffset)
 // 		svgp.Path.AddTo(&svgp.mAdder)
-// 		switch linerColor := svgp.linerColor.(type) {
+// 		switch LinerColor := svgp.LinerColor.(type) {
 // 		case color.Color:
-// 			r.SetColor(rasterx.ApplyOpacity(linerColor, svgp.LineOpacity*opacity))
+// 			r.SetColor(rasterx.ApplyOpacity(LinerColor, svgp.LineOpacity*opacity))
 // 		case Gradient:
-// 			if linerColor.Units == rasterx.ObjectBoundingBox {
+// 			if LinerColor.Units == rasterx.ObjectBoundingBox {
 // 				fRect := r.Scanner.GetPathExtent()
 // 				mnx, mny := float64(fRect.Min.X)/64, float64(fRect.Min.Y)/64
 // 				mxx, mxy := float64(fRect.Max.X)/64, float64(fRect.Max.Y)/64
-// 				linerColor.Bounds.X, linerColor.Bounds.Y = mnx, mny
-// 				linerColor.Bounds.W, linerColor.Bounds.H = mxx-mnx, mxy-mny
+// 				LinerColor.Bounds.X, LinerColor.Bounds.Y = mnx, mny
+// 				LinerColor.Bounds.W, LinerColor.Bounds.H = mxx-mnx, mxy-mny
 // 			}
-// 			r.SetColor(linerColor.GetColorFunction(svgp.LineOpacity * opacity))
+// 			r.SetColor(LinerColor.GetColorFunction(svgp.LineOpacity * opacity))
 // 		}
 // 		r.Draw()
 // 	}
@@ -222,7 +222,7 @@ func (c *iconCursor) readTransformAttr(m1 Matrix2D, k string) (Matrix2D, error) 
 
 func (c *iconCursor) parseTransform(v string) (Matrix2D, error) {
 	ts := strings.Split(v, ")")
-	m1 := c.StyleStack[len(c.StyleStack)-1].transform
+	m1 := c.styleStack[len(c.styleStack)-1].transform
 	for _, t := range ts {
 		t = strings.TrimSpace(t)
 		if len(t) == 0 {
@@ -247,25 +247,25 @@ func (c *iconCursor) parseTransform(v string) (Matrix2D, error) {
 func (c *iconCursor) readStyleAttr(curStyle *PathStyle, k, v string) error {
 	switch k {
 	case "fill":
-		gradient, ok := c.readGradURL(v, curStyle.fillerColor)
+		gradient, ok := c.readGradURL(v, curStyle.FillerColor)
 		if ok {
-			curStyle.fillerColor = gradient
+			curStyle.FillerColor = gradient
 			break
 		}
 		optCol, err := parseSVGColor(v)
-		curStyle.fillerColor = optCol.asPattern()
+		curStyle.FillerColor = optCol.asPattern()
 		return err
 	case "stroke":
-		gradient, ok := c.readGradURL(v, curStyle.linerColor)
+		gradient, ok := c.readGradURL(v, curStyle.LinerColor)
 		if ok {
-			curStyle.linerColor = gradient
+			curStyle.LinerColor = gradient
 			break
 		}
 		col, errc := parseSVGColor(v)
 		if errc != nil {
 			return errc
 		}
-		curStyle.linerColor = col.asPattern()
+		curStyle.LinerColor = col.asPattern()
 	case "stroke-linegap":
 		switch v {
 		case "flat":
@@ -385,7 +385,7 @@ func (c *iconCursor) pushStyle(attrs []xml.Attr) error {
 		}
 	}
 	// Make a copy of the top style
-	curStyle := c.StyleStack[len(c.StyleStack)-1]
+	curStyle := c.styleStack[len(c.styleStack)-1]
 	for _, pair := range pairs {
 		kv := strings.Split(pair, ":")
 		if len(kv) >= 2 {
@@ -398,7 +398,7 @@ func (c *iconCursor) pushStyle(attrs []xml.Attr) error {
 			}
 		}
 	}
-	c.StyleStack = append(c.StyleStack, curStyle) // Push style onto stack
+	c.styleStack = append(c.styleStack, curStyle) // Push style onto stack
 	return nil
 }
 
@@ -436,9 +436,9 @@ func (c *iconCursor) readStartElement(se xml.StartElement) (err error) {
 	df, ok := drawFuncs[se.Name.Local]
 	if !ok {
 		errStr := "Cannot process svg element " + se.Name.Local
-		if c.ErrorMode == StrictErrorMode {
+		if c.errorMode == StrictErrorMode {
 			return errors.New(errStr)
-		} else if c.ErrorMode == WarnErrorMode {
+		} else if c.errorMode == WarnErrorMode {
 			log.Println(errStr)
 		}
 		return nil
@@ -449,7 +449,7 @@ func (c *iconCursor) readStartElement(se xml.StartElement) (err error) {
 		//The cursor parsed a path from the xml element
 		pathCopy := append(Path{}, c.path...)
 		c.icon.SVGPaths = append(c.icon.SVGPaths,
-			SvgPath{Path: pathCopy, Style: c.StyleStack[len(c.StyleStack)-1]})
+			SvgPath{Path: pathCopy, Style: c.styleStack[len(c.styleStack)-1]})
 		c.path = c.path[:0]
 	}
 	return
@@ -457,16 +457,12 @@ func (c *iconCursor) readStartElement(se xml.StartElement) (err error) {
 
 // ReadIconStream reads the Icon from the given io.Reader
 // This only supports a sub-set of SVG, but
-// is enough to draw many icons. If errMode is provided,
-// the first value determines if the icon ignores, errors out, or logs a warning
-// if it does not handle an element found in the icon file. Ignore warnings is
-// the default if no ErrorMode value is provided.
-func ReadIconStream(stream io.Reader, errMode ...ErrorMode) (*SvgIcon, error) {
+// is enough to draw many icons. errMode determines if the icon ignores, errors out, or logs a warning
+// if it does not handle an element found in the icon file.
+func ReadIconStream(stream io.Reader, errMode ErrorMode) (*SvgIcon, error) {
 	icon := &SvgIcon{Defs: make(map[string][]definition), Grads: make(map[string]*Gradient), Transform: Identity}
-	cursor := &iconCursor{StyleStack: []PathStyle{DefaultStyle}, icon: icon}
-	if len(errMode) > 0 {
-		cursor.ErrorMode = errMode[0]
-	}
+	cursor := &iconCursor{styleStack: []PathStyle{DefaultStyle}, icon: icon}
+	cursor.errorMode = errMode
 	decoder := xml.NewDecoder(stream)
 	decoder.CharsetReader = charset.NewReaderLabel
 	for {
@@ -492,7 +488,7 @@ func ReadIconStream(stream io.Reader, errMode ...ErrorMode) (*SvgIcon, error) {
 			}
 		case xml.EndElement:
 			// pop style
-			cursor.StyleStack = cursor.StyleStack[:len(cursor.StyleStack)-1]
+			cursor.styleStack = cursor.styleStack[:len(cursor.styleStack)-1]
 			switch se.Name.Local {
 			case "g":
 				if cursor.inDefs {
@@ -527,17 +523,15 @@ func ReadIconStream(stream io.Reader, errMode ...ErrorMode) (*SvgIcon, error) {
 
 // ReadIcon reads the Icon from the named file
 // This only supports a sub-set of SVG, but
-// is enough to draw many icons. If errMode is provided,
-// the first value determines if the icon ignores, errors out, or logs a warning
-// if it does not handle an element found in the icon file. Ignore warnings is
-// the default if no ErrorMode value is provided.
-func ReadIcon(iconFile string, errMode ...ErrorMode) (*SvgIcon, error) {
+// is enough to draw many icons. errMode determines if the icon ignores, errors out, or logs a warning
+// if it does not handle an element found in the icon file.
+func ReadIcon(iconFile string, errMode ErrorMode) (*SvgIcon, error) {
 	fin, errf := os.Open(iconFile)
 	if errf != nil {
 		return nil, errf
 	}
 	defer fin.Close()
-	return ReadIconStream(fin, errMode...)
+	return ReadIconStream(fin, errMode)
 }
 
 func readFraction(v string) (f float64, err error) {
@@ -892,7 +886,7 @@ func useF(c *iconCursor, attrs []xml.Attr) error {
 	for _, def := range defs {
 		if def.Tag == "endg" {
 			// pop style
-			c.StyleStack = c.StyleStack[:len(c.StyleStack)-1]
+			c.styleStack = c.styleStack[:len(c.styleStack)-1]
 			continue
 		}
 		if err = c.pushStyle(def.Attrs); err != nil {
@@ -901,9 +895,9 @@ func useF(c *iconCursor, attrs []xml.Attr) error {
 		df, ok := drawFuncs[def.Tag]
 		if !ok {
 			errStr := "Cannot process svg element " + def.Tag
-			if c.ErrorMode == StrictErrorMode {
+			if c.errorMode == StrictErrorMode {
 				return errors.New(errStr)
-			} else if c.ErrorMode == WarnErrorMode {
+			} else if c.errorMode == WarnErrorMode {
 				log.Println(errStr)
 			}
 			return nil
@@ -913,7 +907,7 @@ func useF(c *iconCursor, attrs []xml.Attr) error {
 		}
 		if def.Tag != "g" {
 			// pop style
-			c.StyleStack = c.StyleStack[:len(c.StyleStack)-1]
+			c.styleStack = c.styleStack[:len(c.styleStack)-1]
 		}
 	}
 	return nil

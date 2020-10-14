@@ -37,7 +37,7 @@ type pathCursor struct {
 	pathStartX, pathStartY float64
 	points                 []float64
 	lastKey                uint8
-	ErrorMode              ErrorMode
+	errorMode              ErrorMode
 	inPath                 bool
 }
 
@@ -352,10 +352,10 @@ func (c *pathCursor) addSeg(segString string) error {
 			c.addArcFromA(c.points[i:])
 		}
 	default:
-		if c.ErrorMode == StrictErrorMode {
+		if c.errorMode == StrictErrorMode {
 			return errCommandUnknown
 		}
-		if c.ErrorMode == WarnErrorMode {
+		if c.errorMode == WarnErrorMode {
 			log.Println("Ignoring svg command " + string(k))
 		}
 	}

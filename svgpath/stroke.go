@@ -18,9 +18,22 @@ const (
 	tStrokeShift = 14
 )
 
+// JoinMode type to specify how segments join.
+type JoinMode uint8
+
+// JoinMode constants determine how stroke segments bridge the gap at a join
+// ArcClip mode is like MiterClip applied to arcs, and is not part of the SVG2.0
+// standard.
+const (
+	Arc JoinMode = iota
+	ArcClip
+	Miter
+	MiterClip
+	Bevel
+	Round
+)
+
 type (
-	// JoinMode type to specify how segments join.
-	JoinMode uint8
 	// CapFunc defines a function that draws caps on the ends of lines
 	CapFunc func(p *matrixAdder, a, eNorm fixed.Point26_6)
 	// GapFunc defines a function to bridge gaps when the miter limit is
@@ -36,20 +49,8 @@ type (
 	}
 )
 
-// JoinMode constants determine how stroke segments bridge the gap at a join
-// ArcClip mode is like MiterClip applied to arcs, and is not part of the SVG2.0
-// standard.
-const (
-	Arc JoinMode = iota
-	ArcClip
-	Miter
-	MiterClip
-	Bevel
-	Round
-)
-
-// Invert  returns the point inverted around the origin
-func Invert(v fixed.Point26_6) fixed.Point26_6 {
+// invert  returns the point inverted around the origin
+func invert(v fixed.Point26_6) fixed.Point26_6 {
 	return fixed.Point26_6{X: -v.X, Y: -v.Y}
 }
 
@@ -63,8 +64,8 @@ func turnPort90(v fixed.Point26_6) fixed.Point26_6 {
 	return fixed.Point26_6{X: v.Y, Y: -v.X}
 }
 
-// Length is the distance from the origin of the point
-func Length(v fixed.Point26_6) fixed.Int26_6 {
+// length is the distance from the origin of the point
+func length(v fixed.Point26_6) fixed.Int26_6 {
 	vx, vy := float64(v.X), float64(v.Y)
 	return fixed.Int26_6(math.Sqrt(vx*vx + vy*vy))
 }
@@ -72,7 +73,7 @@ func Length(v fixed.Point26_6) fixed.Int26_6 {
 // GapToCap is a utility that converts a CapFunc to GapFunc
 func GapToCap(p *matrixAdder, a, eNorm fixed.Point26_6, gf GapFunc) {
 	p.Start(a.Add(eNorm))
-	gf(p, a, eNorm, Invert(eNorm))
+	gf(p, a, eNorm, invert(eNorm))
 	p.Line(a.Sub(eNorm))
 }
 
@@ -160,7 +161,7 @@ func strokeArc(p *matrixAdder, a, s1, s2 fixed.Point26_6, clockwise bool, trimSt
 	dTheta := deltaTheta / float64(segs)
 	tde := math.Tan(dTheta / 2)
 	alpha := fixed.Int26_6(math.Sin(dTheta) * (math.Sqrt(4+3*tde*tde) - 1) * (64.0 / 3.0)) // Math is fun!
-	r := float64(Length(s1.Sub(a)))                                                        // Note r is *64
+	r := float64(length(s1.Sub(a)))                                                        // Note r is *64
 	ldp := fixed.Point26_6{X: -fixed.Int26_6(r * math.Sin(theta1)), Y: fixed.Int26_6(r * math.Cos(theta1))}
 	ds1 = ldp
 	ps1 = fixed.Point26_6{X: a.X + ldp.Y, Y: a.Y - ldp.X}
@@ -183,8 +184,8 @@ func strokeArc(p *matrixAdder, a, s1, s2 fixed.Point26_6, clockwise bool, trimSt
 // func (r *Stroker) Joiner(p C2Point) {
 // 	crossProd := p.LNorm.X*p.TNorm.Y - p.TNorm.X*p.LNorm.Y
 // 	// stroke bottom edge, with the reverse of p
-// 	r.strokeEdge(C2Point{P: p.P, TNorm: Invert(p.LNorm), LNorm: Invert(p.TNorm),
-// 		TTan: Invert(p.LTan), LTan: Invert(p.TTan), RT: -p.RL, RL: -p.RT}, -crossProd)
+// 	r.strokeEdge(C2Point{P: p.P, TNorm: invert(p.LNorm), LNorm: invert(p.TNorm),
+// 		TTan: invert(p.LTan), LTan: invert(p.TTan), RT: -p.RL, RL: -p.RT}, -crossProd)
 // 	// stroke top edge
 // 	r.strokeEdge(p, crossProd)
 // }
@@ -240,7 +241,7 @@ func strokeArc(p *matrixAdder, a, s1, s2 fixed.Point26_6, clockwise bool, trimSt
 // 		((r.JoinMode == Arc || r.JoinMode == ArcClip) && (rt == 0 && rl == 0)) {
 // 		xt := CalcIntersect(s1.Sub(p.TTan), s1, s2, s2.Sub(p.LTan))
 // 		xa := xt.Sub(p.P)
-// 		if Length(xa) < r.mLimit { // within miter limit
+// 		if length(xa) < r.mLimit { // within miter limit
 // 			ra.Line(xt)
 // 			ra.Line(s2)
 // 			return
@@ -248,18 +249,18 @@ func strokeArc(p *matrixAdder, a, s1, s2 fixed.Point26_6, clockwise bool, trimSt
 // 		if r.JoinMode == MiterClip || (r.JoinMode == ArcClip) {
 // 			//Projection of tNorm onto xa
 // 			tProjP := xa.Mul(fixed.Int26_6((DotProd(xa, p.TNorm) << 6) / DotProd(xa, xa)))
-// 			projLen := Length(tProjP)
+// 			projLen := length(tProjP)
 // 			if r.mLimit > projLen { // the miter limit line is past the bevel point
 // 				// t is the fraction shifted by tStrokeShift to scale the vectors from the bevel point
 // 				// to the line intersection, so that they abbut the miter limit line.
-// 				tiLength := Length(xa)
+// 				tiLength := length(xa)
 // 				sx1, sx2 := xt.Sub(s1), xt.Sub(s2)
 // 				t := (r.mLimit - projLen) << tStrokeShift / (tiLength - projLen)
-// 				tx := ToLength(sx1, t*Length(sx1)>>tStrokeShift)
-// 				lx := ToLength(sx2, t*Length(sx2)>>tStrokeShift)
-// 				vx := ToLength(xa, t*Length(xa)>>tStrokeShift)
+// 				tx := ToLength(sx1, t*length(sx1)>>tStrokeShift)
+// 				lx := ToLength(sx2, t*length(sx2)>>tStrokeShift)
+// 				vx := ToLength(xa, t*length(xa)>>tStrokeShift)
 // 				s1p, _, ap := s1.Add(tx), s2.Add(lx), p.P.Add(vx)
-// 				gLen := Length(ap.Sub(s1p))
+// 				gLen := length(ap.Sub(s1p))
 // 				ra.Line(s1p)
 // 				r.JoinGap(ra, ap, ToLength(turnPort90(p.TTan), gLen), ToLength(turnPort90(p.LTan), gLen))
 // 				ra.Line(s2)
@@ -275,7 +276,7 @@ func strokeArc(p *matrixAdder, a, s1, s2 fixed.Point26_6, clockwise bool, trimSt
 // 			if intersect {
 // 				ray1, ray2 := xt.Sub(cl), s2.Sub(cl)
 // 				clockwise := (ray1.X*ray2.Y > ray1.Y*ray2.X) // Sign of xprod
-// 				if Length(p.P.Sub(xt)) < r.mLimit {          // within miter limit
+// 				if length(p.P.Sub(xt)) < r.mLimit {          // within miter limit
 // 					strokeArc(ra, cl, xt, s2, clockwise, 0, 0, ra.Line)
 // 					ra.Line(s2)
 // 					return
@@ -285,13 +286,13 @@ func strokeArc(p *matrixAdder, a, s1, s2 fixed.Point26_6, clockwise bool, trimSt
 // 					xa := xt.Sub(p.P)
 // 					//Projection of tNorm onto xa
 // 					tProjP := xa.Mul(fixed.Int26_6((DotProd(xa, p.TNorm) << 6) / DotProd(xa, xa)))
-// 					projLen := Length(tProjP)
+// 					projLen := length(tProjP)
 // 					if r.mLimit > projLen { // the miter limit line is past the bevel point
 // 						// t is the fraction shifted by tStrokeShift to scale the line or arc from the bevel point
 // 						// to the line intersection, so that they abbut the miter limit line.
 // 						sx1 := xt.Sub(s1) //, xt.Sub(s2)
-// 						t := fixed.Int26_6(1<<tStrokeShift) - ((r.mLimit - projLen) << tStrokeShift / (Length(xa) - projLen))
-// 						tx := ToLength(sx1, t*Length(sx1)>>tStrokeShift)
+// 						t := fixed.Int26_6(1<<tStrokeShift) - ((r.mLimit - projLen) << tStrokeShift / lLength(xa) - projLen))
+// 						tx := ToLength(sx1, t*length(sx1)>>tStrokeShift)
 // 						s1p := xt.Sub(tx)
 // 						ra.Line(s1p)
 // 						sp1, ds1, ps2, _ := strokeArc(ra, cl, xt, s2, clockwise, t, 0, ra.Start)
@@ -301,9 +302,9 @@ func strokeArc(p *matrixAdder, a, s1, s2 fixed.Point26_6, clockwise bool, trimSt
 // 						midLine := turnPort90(midP.Sub(sp1))
 // 						if midLine.X*midLine.X+midLine.Y*midLine.Y > epsilonFixed { // if midline is zero, CalcIntersect is invalid
 // 							ap := CalcIntersect(s1p, s1p.Sub(p.TNorm), midLine.Add(midP), midP)
-// 							gLen := Length(ap.Sub(s1p))
+// 							gLen := length(ap.Sub(s1p))
 // 							if clockwise {
-// 								ds1 = Invert(ds1)
+// 								ds1 = invert(ds1)
 // 							}
 // 							r.JoinGap(ra, ap, ToLength(turnPort90(p.TTan), gLen), ToLength(turnStarboard90(ds1), gLen))
 // 						}
@@ -320,7 +321,7 @@ func strokeArc(p *matrixAdder, a, s1, s2 fixed.Point26_6, clockwise bool, trimSt
 // 			if intersect {
 // 				ray1, ray2 := s1.Sub(ct), xt.Sub(ct)
 // 				clockwise := ray1.X*ray2.Y > ray1.Y*ray2.X
-// 				if Length(p.P.Sub(xt)) < r.mLimit { // within miter limit
+// 				if length(p.P.Sub(xt)) < r.mLimit { // within miter limit
 // 					strokeArc(ra, ct, s1, xt, clockwise, 0, 0, ra.Line)
 // 					ra.Line(s2)
 // 					return
@@ -330,13 +331,13 @@ func strokeArc(p *matrixAdder, a, s1, s2 fixed.Point26_6, clockwise bool, trimSt
 // 					xa := xt.Sub(p.P)
 // 					//Projection of lNorm onto xa
 // 					lProjP := xa.Mul(fixed.Int26_6((DotProd(xa, p.LNorm) << 6) / DotProd(xa, xa)))
-// 					projLen := Length(lProjP)
+// 					projLen := length(lProjP)
 // 					if r.mLimit > projLen { // The miter limit line is past the bevel point,
 // 						// t is the fraction to scale the line or arc from the bevel point
 // 						// to the line intersection, so that they abbut the miter limit line.
 // 						sx2 := xt.Sub(s2)
-// 						t := fixed.Int26_6(1<<tStrokeShift) - ((r.mLimit - projLen) << tStrokeShift / (Length(xa) - projLen))
-// 						lx := ToLength(sx2, t*Length(sx2)>>tStrokeShift)
+// 						t := fixed.Int26_6(1<<tStrokeShift) - ((r.mLimit - projLen) << tStrokeShift / lLength(xa) - projLen))
+// 						lx := ToLength(sx2, t*length(sx2)>>tStrokeShift)
 // 						s2p := xt.Sub(lx)
 // 						_, _, ps2, ds2 := strokeArc(ra, ct, s1, xt, clockwise, 0, t, ra.Line)
 // 						// calc gap center as pt where -lnorm and line perp to midcoord
@@ -344,9 +345,9 @@ func strokeArc(p *matrixAdder, a, s1, s2 fixed.Point26_6, clockwise bool, trimSt
 // 						midLine := turnStarboard90(midP.Sub(ps2))
 // 						if midLine.X*midLine.X+midLine.Y*midLine.Y > epsilonFixed { // if midline is zero, CalcIntersect is invalid
 // 							ap := CalcIntersect(midP, midLine.Add(midP), s2p, s2p.Sub(p.LNorm))
-// 							gLen := Length(ap.Sub(ps2))
+// 							gLen := length(ap.Sub(ps2))
 // 							if clockwise {
-// 								ds2 = Invert(ds2)
+// 								ds2 = invert(ds2)
 // 							}
 // 							r.JoinGap(ra, ap, ToLength(turnStarboard90(ds2), gLen), ToLength(turnPort90(p.LTan), gLen))
 // 						}
@@ -365,7 +366,7 @@ func strokeArc(p *matrixAdder, a, s1, s2 fixed.Point26_6, clockwise bool, trimSt
 // 				ray1, ray2 = xt.Sub(cl), s2.Sub(cl)
 // 				clockwiseL := ray1.X*ray2.Y > ray1.Y*ray2.X
 
-// 				if Length(p.P.Sub(xt)) < r.mLimit { // within miter limit
+// 				if length(p.P.Sub(xt)) < r.mLimit { // within miter limit
 // 					strokeArc(ra, ct, s1, xt, clockwiseT, 0, 0, ra.Line)
 // 					strokeArc(ra, cl, xt, s2, clockwiseL, 0, 0, ra.Line)
 // 					ra.Line(s2)
@@ -376,11 +377,11 @@ func strokeArc(p *matrixAdder, a, s1, s2 fixed.Point26_6, clockwise bool, trimSt
 // 					xa := xt.Sub(p.P)
 // 					//Projection of lNorm onto xa
 // 					lProjP := xa.Mul(fixed.Int26_6((DotProd(xa, p.LNorm) << 6) / DotProd(xa, xa)))
-// 					projLen := Length(lProjP)
+// 					projLen := length(lProjP)
 // 					if r.mLimit > projLen { // The miter limit line is past the bevel point,
 // 						// t is the fraction to scale the line or arc from the bevel point
 // 						// to the line intersection, so that they abbut the miter limit line.
-// 						t := fixed.Int26_6(1<<tStrokeShift) - ((r.mLimit - projLen) << tStrokeShift / (Length(xa) - projLen))
+// 						t := fixed.Int26_6(1<<tStrokeShift) - ((r.mLimit - projLen) << tStrokeShift / lLength(xa) - projLen))
 // 						_, _, ps1, ds1 := strokeArc(ra, ct, s1, xt, clockwiseT, 0, t, r.Filler.Line)
 // 						ps2, ds2, fs2, _ := strokeArc(ra, cl, xt, s2, clockwiseL, t, 0, ra.Start)
 // 						midP := ps1.Add(ps2).Mul(fixed.Int26_6(1 << 5)) // midpoint
@@ -388,13 +389,13 @@ func strokeArc(p *matrixAdder, a, s1, s2 fixed.Point26_6, clockwise bool, trimSt
 // 						ra.Start(ps1)
 // 						if midLine.X*midLine.X+midLine.Y*midLine.Y > epsilonFixed { // if midline is zero, CalcIntersect is invalid
 // 							if clockwiseT {
-// 								ds1 = Invert(ds1)
+// 								ds1 = invert(ds1)
 // 							}
 // 							if clockwiseL {
-// 								ds2 = Invert(ds2)
+// 								ds2 = invert(ds2)
 // 							}
 // 							ap := CalcIntersect(midP, midLine.Add(midP), ps2, ps2.Sub(turnStarboard90(ds2)))
-// 							gLen := Length(ap.Sub(ps2))
+// 							gLen := length(ap.Sub(ps2))
 // 							r.JoinGap(ra, ap, ToLength(turnStarboard90(ds1), gLen), ToLength(turnStarboard90(ds2), gLen))
 // 						}
 // 						ra.Line(ps2)
@@ -442,7 +443,7 @@ func strokeArc(p *matrixAdder, a, s1, s2 fixed.Point26_6, clockwise bool, trimSt
 // 		rf.Start(a.Add(r.ln))
 // 		rf.Line(r.leadPoint.P.Add(r.leadPoint.TNorm))
 // 		r.CapL(rf, r.leadPoint.P, r.leadPoint.TNorm)
-// 		r.CapT(rf, r.firstP.P, Invert(r.firstP.LNorm))
+// 		r.CapT(rf, r.firstP.P, invert(r.firstP.LNorm))
 // 	}
 // 	r.inStroke = false
 // }
