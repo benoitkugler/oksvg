@@ -37,7 +37,7 @@ func (m *matrix3) coFact(i, j int) float64 {
 	return a*b - c*d
 }
 
-func (m *matrix3) Invert() *matrix3 {
+func (m *matrix3) invert() *matrix3 {
 	var cofact matrix3
 	for i := 0; i < 3; i++ {
 		for j := 0; j < 3; j++ {
@@ -62,7 +62,7 @@ func (m *matrix3) Invert() *matrix3 {
 // Invert returns the inverse matrix
 func (a Matrix2D) Invert() Matrix2D {
 	n := &matrix3{a.A, a.C, a.E, a.B, a.D, a.F, 0, 0, 1}
-	n = n.Invert()
+	n = n.invert()
 	return Matrix2D{A: n[0], C: n[1], E: n[2], B: n[3], D: n[4], F: n[5]}
 }
 
@@ -189,18 +189,18 @@ func (t *matrixAdder) CubeBezier(b, c, d fixed.Point26_6) {
 	t.path.CubeBezier(t.M.TFixed(b), t.M.TFixed(c), t.M.TFixed(d))
 }
 
-// transform the operation by applying `t`
-func (t Matrix2D) trMove(m MoveTo) fixed.Point26_6 { return t.TFixed(fixed.Point26_6(m)) }
+// transform the operation `m` by applying `t`
+func (t Matrix2D) trMove(m OpMoveTo) fixed.Point26_6 { return t.TFixed(fixed.Point26_6(m)) }
 
-// transform the operation by applying `t`
-func (t Matrix2D) trLine(m LineTo) fixed.Point26_6 { return t.TFixed(fixed.Point26_6(m)) }
+// transform the operation `m` by applying `t`
+func (t Matrix2D) trLine(m OpLineTo) fixed.Point26_6 { return t.TFixed(fixed.Point26_6(m)) }
 
-// transform the operation by applying `t`
-func (t Matrix2D) trQuad(m QuadTo) (fixed.Point26_6, fixed.Point26_6) {
+// transform the operation `m` by applying `t`
+func (t Matrix2D) trQuad(m OpQuadTo) (fixed.Point26_6, fixed.Point26_6) {
 	return t.TFixed(fixed.Point26_6(m[0])), t.TFixed(fixed.Point26_6(m[1]))
 }
 
-// transform the operation by applying `t`
-func (t Matrix2D) trCubic(m CubicTo) (fixed.Point26_6, fixed.Point26_6, fixed.Point26_6) {
+// transform the operation `m` by applying `t`
+func (t Matrix2D) trCubic(m OpCubicTo) (fixed.Point26_6, fixed.Point26_6, fixed.Point26_6) {
 	return t.TFixed(fixed.Point26_6(m[0])), t.TFixed(fixed.Point26_6(m[1])), t.TFixed(fixed.Point26_6(m[2]))
 }
