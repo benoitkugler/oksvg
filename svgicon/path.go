@@ -44,6 +44,7 @@ type Close struct{}
 
 // starts a new path at the given point.
 func (op MoveTo) drawTo(d Driver, M Matrix2D) {
+	d.Stop(false) // implicit close if currently in path.
 	d.Start(M.trMove(op))
 }
 

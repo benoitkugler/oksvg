@@ -1,6 +1,7 @@
 package svgicon
 
 import (
+	"fmt"
 	"strings"
 
 	"encoding/xml"
@@ -78,12 +79,23 @@ var DefaultStyle = PathStyle{
 	LineWidth:         2.0,
 	UseNonZeroWinding: true,
 	Join: JoinOptions{
-		MiterLimit:   fToFixed(4),
+		MiterLimit:   fToFixed(4.),
 		LineJoin:     Bevel,
 		TrailLineCap: ButtCap,
 	},
 	FillerColor: NewPlainColor(0x00, 0x00, 0x00, 0xff),
 	transform:   Identity,
+}
+
+// treat the error according to the errorMode
+func (c *iconCursor) handleError(originFmt string, args ...interface{}) error {
+	formatted := fmt.Sprintf(originFmt, args...)
+	if c.errorMode == StrictErrorMode {
+		return errors.New(formatted)
+	} else if c.errorMode == WarnErrorMode {
+		log.Println(formatted) // then return nil
+	}
+	return nil
 }
 
 func (c *iconCursor) readTransformAttr(m1 Matrix2D, k string) (Matrix2D, error) {
@@ -186,11 +198,11 @@ func (c *iconCursor) readStyleAttr(curStyle *PathStyle, k, v string) error {
 			curStyle.LinerColor = gradient
 			break
 		}
-		col, errc := parseSVGColor(v)
+		optCol, errc := parseSVGColor(v)
 		if errc != nil {
 			return errc
 		}
-		curStyle.LinerColor = col.asPattern()
+		curStyle.LinerColor = optCol.asPattern()
 	case "stroke-linegap":
 		switch v {
 		case "flat":
@@ -201,6 +213,8 @@ func (c *iconCursor) readStyleAttr(curStyle *PathStyle, k, v string) error {
 			curStyle.Join.LineGap = CubicGap
 		case "quadratic":
 			curStyle.Join.LineGap = QuadraticGap
+		default:
+			return c.handleError("unsupported value '%s' for <stroke-linegap>", v)
 		}
 	case "stroke-leadlinecap":
 		switch v {
@@ -214,6 +228,8 @@ func (c *iconCursor) readStyleAttr(curStyle *PathStyle, k, v string) error {
 			curStyle.Join.LeadLineCap = CubicCap
 		case "quadratic":
 			curStyle.Join.LeadLineCap = QuadraticCap
+		default:
+			return c.handleError("unsupported value '%s' for <stroke-leadlinecap>", v)
 		}
 	case "stroke-linecap":
 		switch v {
@@ -227,6 +243,8 @@ func (c *iconCursor) readStyleAttr(curStyle *PathStyle, k, v string) error {
 			curStyle.Join.TrailLineCap = CubicCap
 		case "quadratic":
 			curStyle.Join.TrailLineCap = QuadraticCap
+		default:
+			return c.handleError("unsupported value '%s' for <stroke-linecap>", v)
 		}
 	case "stroke-linejoin":
 		switch v {
@@ -242,21 +260,23 @@ func (c *iconCursor) readStyleAttr(curStyle *PathStyle, k, v string) error {
 			curStyle.Join.LineJoin = Arc
 		case "bevel":
 			curStyle.Join.LineJoin = Bevel
+		default:
+			return c.handleError("unsupported value '%s' for <stroke-linejoin>", v)
 		}
 	case "stroke-miterlimit":
-		mLimit, err := parseFloat(v, 64)
+		mLimit, err := parseBasicFloat(v)
 		if err != nil {
 			return err
 		}
 		curStyle.Join.MiterLimit = fToFixed(mLimit)
 	case "stroke-width":
-		width, err := parseFloat(v, 64)
+		width, err := c.parseUnit(v, widthPercentage)
 		if err != nil {
 			return err
 		}
 		curStyle.LineWidth = width
 	case "stroke-dashoffset":
-		dashOffset, err := parseFloat(v, 64)
+		dashOffset, err := c.parseUnit(v, diagPercentage)
 		if err != nil {
 			return err
 		}
@@ -266,7 +286,7 @@ func (c *iconCursor) readStyleAttr(curStyle *PathStyle, k, v string) error {
 			dashes := splitOnCommaOrSpace(v)
 			dList := make([]float64, len(dashes))
 			for i, dstr := range dashes {
-				d, err := parseFloat(strings.TrimSpace(dstr), 64)
+				d, err := c.parseUnit(strings.TrimSpace(dstr), diagPercentage)
 				if err != nil {
 					return err
 				}
@@ -276,7 +296,7 @@ func (c *iconCursor) readStyleAttr(curStyle *PathStyle, k, v string) error {
 			break
 		}
 	case "opacity", "stroke-opacity", "fill-opacity":
-		op, err := parseFloat(v, 64)
+		op, err := parseBasicFloat(v)
 		if err != nil {
 			return err
 		}
@@ -387,7 +407,7 @@ func readFraction(v string) (f float64, err error) {
 		d = 100
 		v = strings.TrimSuffix(v, "%")
 	}
-	f, err = parseFloat(v, 64)
+	f, err = parseBasicFloat(v)
 	f /= d
 	// Is this is an unnecessary restriction? For now fractions can be all values not just in the range [0,1]
 	// if f > 1 {
@@ -437,9 +457,9 @@ func svgF(c *iconCursor, attrs []xml.Attr) error {
 			c.icon.ViewBox.W = c.points[2]
 			c.icon.ViewBox.H = c.points[3]
 		case "width":
-			width, err = parseFloat(attr.Value, 64)
+			width, err = parseBasicFloat(attr.Value)
 		case "height":
-			height, err = parseFloat(attr.Value, 64)
+			height, err = parseBasicFloat(attr.Value)
 		}
 		if err != nil {
 			return err
@@ -460,17 +480,17 @@ func rectF(c *iconCursor, attrs []xml.Attr) error {
 	for _, attr := range attrs {
 		switch attr.Name.Local {
 		case "x":
-			x, err = parseFloat(attr.Value, 64)
+			x, err = c.parseUnit(attr.Value, widthPercentage)
 		case "y":
-			y, err = parseFloat(attr.Value, 64)
+			y, err = c.parseUnit(attr.Value, heightPercentage)
 		case "width":
-			w, err = parseFloat(attr.Value, 64)
+			w, err = c.parseUnit(attr.Value, widthPercentage)
 		case "height":
-			h, err = parseFloat(attr.Value, 64)
+			h, err = c.parseUnit(attr.Value, heightPercentage)
 		case "rx":
-			rx, err = parseFloat(attr.Value, 64)
+			rx, err = c.parseUnit(attr.Value, widthPercentage)
 		case "ry":
-			ry, err = parseFloat(attr.Value, 64)
+			ry, err = c.parseUnit(attr.Value, heightPercentage)
 		}
 		if err != nil {
 			return err
@@ -488,16 +508,16 @@ func circleF(c *iconCursor, attrs []xml.Attr) error {
 	for _, attr := range attrs {
 		switch attr.Name.Local {
 		case "cx":
-			cx, err = parseFloat(attr.Value, 64)
+			cx, err = c.parseUnit(attr.Value, widthPercentage)
 		case "cy":
-			cy, err = parseFloat(attr.Value, 64)
+			cy, err = c.parseUnit(attr.Value, heightPercentage)
 		case "r":
-			rx, err = parseFloat(attr.Value, 64)
+			rx, err = c.parseUnit(attr.Value, diagPercentage)
 			ry = rx
 		case "rx":
-			rx, err = parseFloat(attr.Value, 64)
+			rx, err = c.parseUnit(attr.Value, widthPercentage)
 		case "ry":
-			ry, err = parseFloat(attr.Value, 64)
+			ry, err = c.parseUnit(attr.Value, heightPercentage)
 		}
 		if err != nil {
 			return err
@@ -515,13 +535,13 @@ func lineF(c *iconCursor, attrs []xml.Attr) error {
 	for _, attr := range attrs {
 		switch attr.Name.Local {
 		case "x1":
-			x1, err = parseFloat(attr.Value, 64)
+			x1, err = c.parseUnit(attr.Value, widthPercentage)
 		case "x2":
-			x2, err = parseFloat(attr.Value, 64)
+			x2, err = c.parseUnit(attr.Value, widthPercentage)
 		case "y1":
-			y1, err = parseFloat(attr.Value, 64)
+			y1, err = c.parseUnit(attr.Value, heightPercentage)
 		case "y2":
-			y2, err = parseFloat(attr.Value, 64)
+			y2, err = c.parseUnit(attr.Value, heightPercentage)
 		}
 		if err != nil {
 			return err
@@ -670,6 +690,7 @@ func radialGradientF(c *iconCursor, attrs []xml.Attr) error {
 	if !setFy { // set fy to cy by default
 		direction[3] = direction[1]
 	}
+	c.grad.Direction = direction
 	return nil
 }
 func stopF(c *iconCursor, attrs []xml.Attr) error {
@@ -686,7 +707,7 @@ func stopF(c *iconCursor, attrs []xml.Attr) error {
 				optColor, err = parseSVGColor(attr.Value)
 				stop.StopColor = optColor.asColor()
 			case "stop-opacity":
-				stop.Opacity, err = parseFloat(attr.Value, 64)
+				stop.Opacity, err = parseBasicFloat(attr.Value)
 			}
 			if err != nil {
 				return err
@@ -707,9 +728,9 @@ func useF(c *iconCursor, attrs []xml.Attr) error {
 		case "href":
 			href = attr.Value
 		case "x":
-			x, err = parseFloat(attr.Value, 64)
+			x, err = c.parseUnit(attr.Value, widthPercentage)
 		case "y":
-			y, err = parseFloat(attr.Value, 64)
+			y, err = c.parseUnit(attr.Value, heightPercentage)
 		}
 		if err != nil {
 			return err
@@ -741,12 +762,7 @@ func useF(c *iconCursor, attrs []xml.Attr) error {
 		df, ok := drawFuncs[def.Tag]
 		if !ok {
 			errStr := "Cannot process svg element " + def.Tag
-			if c.errorMode == StrictErrorMode {
-				return errors.New(errStr)
-			} else if c.errorMode == WarnErrorMode {
-				log.Println(errStr)
-			}
-			return nil
+			return c.handleError(errStr)
 		}
 		if err := df(c, def.Attrs); err != nil {
 			return err

@@ -42,3 +42,7 @@ func TestStrokeIcons(t *testing.T) {
 		parseIcon(t, "testdata/"+p)
 	}
 }
+
+func TestPercentages(t *testing.T) {
+	parseIcon(t, "testdata/TestPercentages.svg")
+}

@@ -29,6 +29,9 @@ type Driver interface {
 	// Parametrize the stroking style
 	SetStrokeOptions(options StrokeOptions)
 
+	// SetFillingMode switch between filling or stroking
+	SetFillingMode(fill bool)
+
 	// Start starts a new path at the given point.
 	Start(a fixed.Point26_6)
 
@@ -44,11 +47,9 @@ type Driver interface {
 	// Closes the path to the start point if `closeLoop` is true
 	Stop(closeLoop bool)
 
-	// Fill fills the accumulated path using the current fill color
-	Fill()
-
-	// Stroke strokes the accumulated path using the current stroke settings
-	Stroke()
+	// Draw fills or strokes the accumulated path using the current settings
+	// depending on the filling mode
+	Draw()
 }
 
 type DashOptions struct {
@@ -63,25 +64,63 @@ type JoinMode uint8
 // ArcClip mode is like MiterClip applied to arcs, and is not part of the SVG2.0
 // standard.
 const (
-	Round JoinMode = iota
+	Arc JoinMode = iota // New in SVG2
+	Round
 	Bevel
 	Miter
 	MiterClip // New in SVG2
-	Arc       // New in SVG2
 	ArcClip   // Like MiterClip applied to arcs, and is not part of the SVG2.0 standard.
 )
+
+func (s JoinMode) String() string {
+	switch s {
+	case Round:
+		return "Round"
+	case Bevel:
+		return "Bevel"
+	case Miter:
+		return "Miter"
+	case MiterClip:
+		return "MiterClip"
+	case Arc:
+		return "Arc"
+	case ArcClip:
+		return "ArcClip"
+	default:
+		return "<unknown JoinMode>"
+	}
+}
 
 // CapMode defines how to draw caps on the ends of lines
 type CapMode uint8
 
 const (
-	NilCap CapMode = iota
+	NilCap CapMode = iota // default value
 	ButtCap
 	SquareCap
 	RoundCap
 	CubicCap     // Not part of the SVG2.0 standard.
 	QuadraticCap // Not part of the SVG2.0 standard.
 )
+
+func (c CapMode) String() string {
+	switch c {
+	case NilCap:
+		return "NilCap"
+	case ButtCap:
+		return "ButtCap"
+	case SquareCap:
+		return "SquareCap"
+	case RoundCap:
+		return "RoundCap"
+	case CubicCap:
+		return "CubicCap"
+	case QuadraticCap:
+		return "QuadraticCap"
+	default:
+		return "<unknown CapMode>"
+	}
+}
 
 // GapMode defines how to bridge gaps when the miter limit is exceeded,
 // and is not part of the SVG2.0 standard.
@@ -94,6 +133,23 @@ const (
 	CubicGap
 	QuadraticGap
 )
+
+func (g GapMode) String() string {
+	switch g {
+	case NilGap:
+		return "NilGap"
+	case FlatGap:
+		return "FlatGap"
+	case RoundGap:
+		return "RoundGap"
+	case CubicGap:
+		return "CubicGap"
+	case QuadraticGap:
+		return "QuadraticGap"
+	default:
+		return "<unknown GapMode>"
+	}
+}
 
 type JoinOptions struct {
 	MiterLimit   fixed.Int26_6 // he miter cutoff value for miter, arc, miterclip and arcClip joinModes
@@ -131,46 +187,55 @@ func (svgp *SvgPath) drawTransformed(d Driver, opacity float64, t Matrix2D) {
 	svgp.Style.transform = t.Mult(m)
 	defer func() { svgp.Style.transform = m }() // Restore untransformed matrix
 
-	d.Clear() // TODO: neccesary ?
-	d.SetWinding(svgp.Style.UseNonZeroWinding)
-	d.SetFillColor(svgp.Style.FillerColor, svgp.Style.FillOpacity*opacity)
-	d.SetStrokeColor(svgp.Style.LinerColor, svgp.Style.LineOpacity*opacity)
-
-	lineGap := svgp.Style.Join.LineGap
-	if lineGap == NilGap {
-		lineGap = DefaultStyle.Join.LineGap
-	}
-	lineCap := svgp.Style.Join.TrailLineCap
-	if lineCap == NilCap {
-		lineCap = DefaultStyle.Join.TrailLineCap
-	}
-	leadLineCap := lineCap
-	if svgp.Style.Join.LeadLineCap != NilCap {
-		leadLineCap = svgp.Style.Join.LeadLineCap
-	}
-	d.SetStrokeOptions(StrokeOptions{
-		LineWidth: fixed.Int26_6(svgp.Style.LineWidth * 64),
-		Join: JoinOptions{
-			MiterLimit:   svgp.Style.Join.MiterLimit,
-			LineJoin:     svgp.Style.Join.LineJoin,
-			LeadLineCap:  leadLineCap,
-			TrailLineCap: lineCap,
-			LineGap:      lineGap,
-		},
-		Dash: svgp.Style.Dash,
-	})
-
-	for _, op := range svgp.Path {
-		op.drawTo(d, svgp.Style.transform)
-	}
-	d.Stop(true)
-
 	if svgp.Style.FillerColor != nil { // nil color disable filling
-		d.Fill()
+		d.Clear()
+		d.SetWinding(svgp.Style.UseNonZeroWinding)
+
+		d.SetFillingMode(true)
+		for _, op := range svgp.Path {
+			op.drawTo(d, svgp.Style.transform)
+		}
+		d.Stop(false)
+
+		d.SetFillColor(svgp.Style.FillerColor, svgp.Style.FillOpacity*opacity)
+		d.Draw()
 		d.SetWinding(true) // default is true
 	}
 
 	if svgp.Style.LinerColor != nil { // nil color disable lining
-		d.Stroke()
+		d.Clear()
+
+		lineGap := svgp.Style.Join.LineGap
+		if lineGap == NilGap {
+			lineGap = DefaultStyle.Join.LineGap
+		}
+		lineCap := svgp.Style.Join.TrailLineCap
+		if lineCap == NilCap {
+			lineCap = DefaultStyle.Join.TrailLineCap
+		}
+		leadLineCap := lineCap
+		if svgp.Style.Join.LeadLineCap != NilCap {
+			leadLineCap = svgp.Style.Join.LeadLineCap
+		}
+		d.SetStrokeOptions(StrokeOptions{
+			LineWidth: fixed.Int26_6(svgp.Style.LineWidth * 64),
+			Join: JoinOptions{
+				MiterLimit:   svgp.Style.Join.MiterLimit,
+				LineJoin:     svgp.Style.Join.LineJoin,
+				LeadLineCap:  leadLineCap,
+				TrailLineCap: lineCap,
+				LineGap:      lineGap,
+			},
+			Dash: svgp.Style.Dash,
+		})
+
+		d.SetFillingMode(false)
+		for _, op := range svgp.Path {
+			op.drawTo(d, svgp.Style.transform)
+		}
+		d.Stop(false)
+
+		d.SetStrokeColor(svgp.Style.LinerColor, svgp.Style.LineOpacity*opacity)
+		d.Draw()
 	}
 }
