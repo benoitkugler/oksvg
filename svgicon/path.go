@@ -1,6 +1,3 @@
-// Implements an abstract representation of
-// svg paths, which can then be consumed
-// by painting driver
 package svgicon
 
 import (
@@ -10,26 +7,12 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
-// // Adder interface for types that can accumlate path commands
-// type Adder interface {
-// 	// Start starts a new curve at the given point.
-// 	Start(a fixed.Point26_6)
-// 	// Line adds a line segment to the path
-// 	Line(b fixed.Point26_6)
-// 	// QuadBezier adds a quadratic bezier curve to the path
-// 	QuadBezier(b, c fixed.Point26_6)
-// 	// CubeBezier adds a cubic bezier curve to the path
-// 	CubeBezier(b, c, d fixed.Point26_6)
-// 	// Closes the path to the start point if closeLoop is true
-// 	Stop(closeLoop bool)
-// }
-
-type pathCommand uint8
+// This file defines the basic path structure
 
 // Operation groups the different SVG commands
 type Operation interface {
 	// add itself on the driver `d`, after aplying the transform `M`
-	drawTo(d Driver, M Matrix2D)
+	drawTo(d Drawer, M Matrix2D)
 }
 
 type MoveTo fixed.Point26_6
@@ -43,29 +26,29 @@ type CubicTo [3]fixed.Point26_6
 type Close struct{}
 
 // starts a new path at the given point.
-func (op MoveTo) drawTo(d Driver, M Matrix2D) {
+func (op MoveTo) drawTo(d Drawer, M Matrix2D) {
 	d.Stop(false) // implicit close if currently in path.
 	d.Start(M.trMove(op))
 }
 
 // draw a line
-func (op LineTo) drawTo(d Driver, M Matrix2D) {
+func (op LineTo) drawTo(d Drawer, M Matrix2D) {
 	d.Line(M.trLine(op))
 }
 
 // draw a quadratic bezier curve
-func (op QuadTo) drawTo(d Driver, M Matrix2D) {
+func (op QuadTo) drawTo(d Drawer, M Matrix2D) {
 	b, c := M.trQuad(op)
 	d.QuadBezier(b, c)
 }
 
 // draw a cubic bezier curve
-func (op CubicTo) drawTo(d Driver, M Matrix2D) {
+func (op CubicTo) drawTo(d Drawer, M Matrix2D) {
 	b, c, d_ := M.trCubic(op)
 	d.CubeBezier(b, c, d_)
 }
 
-func (op Close) drawTo(d Driver, _ Matrix2D) {
+func (op Close) drawTo(d Drawer, _ Matrix2D) {
 	d.Stop(true)
 }
 

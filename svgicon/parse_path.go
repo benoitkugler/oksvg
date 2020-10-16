@@ -23,6 +23,13 @@ const (
 	StrictErrorMode
 )
 
+var (
+	errParamMismatch  = errors.New("Param mismatch")
+	errCommandUnknown = errors.New("Unknown command")
+	errZeroLengthID   = errors.New("zero length id")
+	errMissingID      = errors.New("cannot find id")
+)
+
 // pathCursor is used to parse SVG format path strings into a Path
 type pathCursor struct {
 	path                   Path
@@ -36,12 +43,37 @@ type pathCursor struct {
 	inPath                 bool
 }
 
-var (
-	errParamMismatch  = errors.New("Param mismatch")
-	errCommandUnknown = errors.New("Unknown command")
-	errZeroLengthID   = errors.New("zero length id")
-	errMissingID      = errors.New("cannot find id")
-)
+func (c *pathCursor) init() {
+	c.placeX = 0.0
+	c.placeY = 0.0
+	c.points = c.points[0:0]
+	c.lastKey = ' '
+	c.path.Clear()
+	c.inPath = false
+}
+
+// compilePath translates the svgPath description string into a path.
+// The resulting path element is stored in the pathCursor.
+func (c *pathCursor) compilePath(svgPath string) error {
+	c.init()
+	lastIndex := -1
+	for i, v := range svgPath {
+		if unicode.IsLetter(v) && v != 'e' {
+			if lastIndex != -1 {
+				if err := c.addSeg(svgPath[lastIndex:i]); err != nil {
+					return err
+				}
+			}
+			lastIndex = i
+		}
+	}
+	if lastIndex != -1 {
+		if err := c.addSeg(svgPath[lastIndex:]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 func reflect(px, py, rx, ry float64) (x, y float64) {
 	return px*2 - rx, py*2 - ry
@@ -355,36 +387,4 @@ func (c *pathCursor) addArcFromA(points []float64) {
 	cx, cy := findEllipseCenter(&points[0], &points[1], points[2]*math.Pi/180, c.placeX,
 		c.placeY, points[5], points[6], points[4] == 0, points[3] == 0)
 	c.placeX, c.placeY = c.path.addArc(c.points, cx+c.curX, cy+c.curY, c.placeX+c.curX, c.placeY+c.curY)
-}
-
-func (c *pathCursor) init() {
-	c.placeX = 0.0
-	c.placeY = 0.0
-	c.points = c.points[0:0]
-	c.lastKey = ' '
-	c.path.Clear()
-	c.inPath = false
-}
-
-// compilePath translates the svgPath description string into a path.
-// The resulting path element is stored in the pathCursor.
-func (c *pathCursor) compilePath(svgPath string) error {
-	c.init()
-	lastIndex := -1
-	for i, v := range svgPath {
-		if unicode.IsLetter(v) && v != 'e' {
-			if lastIndex != -1 {
-				if err := c.addSeg(svgPath[lastIndex:i]); err != nil {
-					return err
-				}
-			}
-			lastIndex = i
-		}
-	}
-	if lastIndex != -1 {
-		if err := c.addSeg(svgPath[lastIndex:]); err != nil {
-			return err
-		}
-	}
-	return nil
 }

@@ -1,3 +1,6 @@
+// Provides parsing and rendering of SVG images
+// SVG files are parsed into an abstract representation,
+// which can then be consumed by painting drivers
 package svgicon
 
 import (
@@ -7,6 +10,37 @@ import (
 
 	"golang.org/x/net/html/charset"
 )
+
+// PathStyle holds the state of the SVG style
+type PathStyle struct {
+	FillOpacity, LineOpacity float64
+	LineWidth                float64
+	UseNonZeroWinding        bool
+
+	Join                    JoinOptions
+	Dash                    DashOptions
+	FillerColor, LinerColor Pattern // either PlainColor or Gradient
+
+	transform Matrix2D // current transform
+}
+
+// SvgPath binds a style to a path
+type SvgPath struct {
+	Path  Path
+	Style PathStyle
+}
+
+// SvgIcon holds data from parsed SVGs
+type SvgIcon struct {
+	ViewBox      struct{ X, Y, W, H float64 }
+	Titles       []string // Title elements collect here
+	Descriptions []string // Description elements collect here
+	SVGPaths     []SvgPath
+	Transform    Matrix2D
+
+	grads map[string]*Gradient
+	defs  map[string][]definition
+}
 
 // ReadIconStream reads the Icon from the given io.Reader
 // This only supports a sub-set of SVG, but

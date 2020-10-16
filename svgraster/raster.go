@@ -1,5 +1,5 @@
 // Implements a raster backend to render SVG images,
-// by wrapping rasterx.
+// by wrapping github.com/srwiley/rasterx.
 package svgraster
 
 import (
@@ -8,14 +8,26 @@ import (
 
 	"github.com/benoitkugler/oksvg/svgicon"
 	"github.com/srwiley/rasterx"
-	"golang.org/x/image/math/fixed"
 )
 
-var _ svgicon.Driver = (*Renderer)(nil) // assert interface conformance
+// assert interface conformance
+var (
+	_ svgicon.Driver  = (*Renderer)(nil)
+	_ svgicon.Filler  = filler{}
+	_ svgicon.Stroker = stroker{}
+)
 
 type Renderer struct {
 	dasher    *rasterx.Dasher
 	isFilling bool
+}
+
+type filler struct {
+	*rasterx.Filler
+}
+
+type stroker struct {
+	*rasterx.Dasher
 }
 
 // NewRenderer returns a renderer with default values.
@@ -24,6 +36,16 @@ type Renderer struct {
 // If scanner is nil, a default scanner rasterx.ScannerGV is used
 func NewRenderer(width, height int, scanner rasterx.Scanner) *Renderer {
 	return &Renderer{dasher: rasterx.NewDasher(width, height, scanner)}
+}
+
+func (rd Renderer) SetupDrawers(willFill, willStroke bool) (f svgicon.Filler, s svgicon.Stroker) {
+	if willFill {
+		f = filler{Filler: &rd.dasher.Filler}
+	}
+	if willStroke {
+		s = stroker{Dasher: rd.dasher}
+	}
+	return f, s
 }
 
 // RasterSVGIconToImage uses a ScannerGV instance to renderer the
@@ -40,18 +62,6 @@ func RasterSVGIconToImage(icon io.Reader) (*image.RGBA, error) {
 	renderer := NewRenderer(w, h, scanner)
 	parsedIcon.Draw(renderer, 1.0)
 	return img, nil
-}
-
-func (rd Renderer) Clear() {
-	rd.dasher.Clear()
-}
-
-func (rd *Renderer) SetFillingMode(fill bool) {
-	rd.isFilling = fill
-}
-
-func (rd Renderer) SetWinding(useNonZeroWinding bool) {
-	rd.dasher.SetWinding(useNonZeroWinding)
 }
 
 func toRasterxGradient(grad svgicon.Gradient) rasterx.Gradient {
@@ -100,12 +110,12 @@ func setColorFromPattern(color svgicon.Pattern, opacity float64, scanner rasterx
 	}
 }
 
-func (rd Renderer) SetFillColor(color svgicon.Pattern, opacity float64) {
-	setColorFromPattern(color, opacity, rd.dasher.Scanner)
+func (f filler) SetColor(color svgicon.Pattern, opacity float64) {
+	setColorFromPattern(color, opacity, f.Scanner)
 }
 
-func (rd Renderer) SetStrokeColor(color svgicon.Pattern, opacity float64) {
-	setColorFromPattern(color, opacity, rd.dasher.Scanner)
+func (s stroker) SetColor(color svgicon.Pattern, opacity float64) {
+	setColorFromPattern(color, opacity, s.Scanner)
 }
 
 var (
@@ -134,58 +144,10 @@ var (
 	}
 )
 
-func (rd Renderer) SetStrokeOptions(options svgicon.StrokeOptions) {
-	rd.dasher.SetStroke(
+func (s stroker) SetStrokeOptions(options svgicon.StrokeOptions) {
+	s.SetStroke(
 		options.LineWidth, options.Join.MiterLimit, capToFunc[options.Join.LeadLineCap],
 		capToFunc[options.Join.TrailLineCap], gapToFunc[options.Join.LineGap],
 		joinToJoin[options.Join.LineJoin], options.Dash.Dash, options.Dash.DashOffset,
 	)
-}
-
-func (rd Renderer) Start(a fixed.Point26_6) {
-	if rd.isFilling {
-		rd.dasher.Filler.Start(a)
-	} else {
-		rd.dasher.Start(a)
-	}
-}
-
-func (rd Renderer) Line(b fixed.Point26_6) {
-	if rd.isFilling {
-		rd.dasher.Filler.Line(b)
-	} else {
-		rd.dasher.Line(b)
-	}
-}
-
-func (rd Renderer) QuadBezier(b fixed.Point26_6, c fixed.Point26_6) {
-	if rd.isFilling {
-		rd.dasher.Filler.QuadBezier(b, c)
-	} else {
-		rd.dasher.QuadBezier(b, c)
-	}
-}
-
-func (rd Renderer) CubeBezier(b fixed.Point26_6, c fixed.Point26_6, d fixed.Point26_6) {
-	if rd.isFilling {
-		rd.dasher.Filler.CubeBezier(b, c, d)
-	} else {
-		rd.dasher.CubeBezier(b, c, d)
-	}
-}
-
-func (rd Renderer) Stop(closeLoop bool) {
-	if rd.isFilling {
-		rd.dasher.Filler.Stop(closeLoop)
-	} else {
-		rd.dasher.Stop(closeLoop)
-	}
-}
-
-func (rd Renderer) Draw() {
-	if rd.isFilling {
-		rd.dasher.Filler.Draw()
-	} else {
-		rd.dasher.Draw()
-	}
 }

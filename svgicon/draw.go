@@ -9,28 +9,13 @@ import (
 // This requires a driver implementing the actual draw operations,
 // such as a rasterizer to output .png images or a pdf writer.
 
-// Driver knows how to do the actual draw operations
+// Drawer knows how to do the actual draw operations
 // but doesn't need any SVG kwowledge
 // In particular, tranformations matrix are already applied to the points
-// before sending them to the Driver.
-type Driver interface {
+// before sending them to the Drawer.
+type Drawer interface {
 	// Clear must reset the internal state (used before starting a new path painting)
 	Clear()
-
-	// Decide to use or not the NonZeroWinding rule.
-	SetWinding(useNonZeroWinding bool)
-
-	// Set the filling color (plain color or gradient)
-	SetFillColor(color Pattern, opacity float64)
-
-	// Set the stroking color (plain color or gradient)
-	SetStrokeColor(color Pattern, opacity float64)
-
-	// Parametrize the stroking style
-	SetStrokeOptions(options StrokeOptions)
-
-	// SetFillingMode switch between filling or stroking
-	SetFillingMode(fill bool)
 
 	// Start starts a new path at the given point.
 	Start(a fixed.Point26_6)
@@ -47,9 +32,38 @@ type Driver interface {
 	// Closes the path to the start point if `closeLoop` is true
 	Stop(closeLoop bool)
 
+	// SetColor set the color for the current path
+	SetColor(color Pattern, opacity float64)
+
 	// Draw fills or strokes the accumulated path using the current settings
 	// depending on the filling mode
 	Draw()
+}
+
+type Filler interface {
+	Drawer
+
+	// Decide to use or not the NonZeroWinding rule for the current path
+	SetWinding(useNonZeroWinding bool)
+}
+
+type Stroker interface {
+	Drawer
+
+	// Parametrize the stroking style for the current path
+	SetStrokeOptions(options StrokeOptions)
+}
+
+type Driver interface {
+	// SetupDrawers returns the backend painters, and
+	// will be called at the begining of every path.
+	// If the willXXX is false, the returned drawer should be nil
+	// to avoid useless operations.
+	// When both booleans are true, one can assume that the exact same draw operations
+	// will be performed on the Filler first and then on the Stroker.
+	// This promise may enable the implentation to avoid duplicating paths
+	// both filled and stroked
+	SetupDrawers(willFill, willStroke bool) (Filler, Stroker)
 }
 
 type DashOptions struct {
@@ -166,6 +180,22 @@ type StrokeOptions struct {
 	Dash      DashOptions
 }
 
+// DefaultStyle sets the default PathStyle to fill black, winding rule,
+// full opacity, no stroke, ButtCap line end and Bevel line connect.
+var DefaultStyle = PathStyle{
+	FillOpacity:       1.0,
+	LineOpacity:       1.0,
+	LineWidth:         2.0,
+	UseNonZeroWinding: true,
+	Join: JoinOptions{
+		MiterLimit:   fToFixed(4.),
+		LineJoin:     Bevel,
+		TrailLineCap: ButtCap,
+	},
+	FillerColor: NewPlainColor(0x00, 0x00, 0x00, 0xff),
+	transform:   Identity,
+}
+
 // SetTarget sets the Transform matrix to draw within the bounds of the rectangle arguments
 func (s *SvgIcon) SetTarget(x, y, w, h float64) {
 	scaleW := w / s.ViewBox.W
@@ -187,23 +217,23 @@ func (svgp *SvgPath) drawTransformed(d Driver, opacity float64, t Matrix2D) {
 	svgp.Style.transform = t.Mult(m)
 	defer func() { svgp.Style.transform = m }() // Restore untransformed matrix
 
-	if svgp.Style.FillerColor != nil { // nil color disable filling
-		d.Clear()
-		d.SetWinding(svgp.Style.UseNonZeroWinding)
+	filler, stroker := d.SetupDrawers(svgp.Style.FillerColor != nil, svgp.Style.LinerColor != nil)
+	if filler != nil { // nil color disable filling
+		filler.Clear()
+		filler.SetWinding(svgp.Style.UseNonZeroWinding)
 
-		d.SetFillingMode(true)
 		for _, op := range svgp.Path {
-			op.drawTo(d, svgp.Style.transform)
+			op.drawTo(filler, svgp.Style.transform)
 		}
-		d.Stop(false)
+		filler.Stop(false)
 
-		d.SetFillColor(svgp.Style.FillerColor, svgp.Style.FillOpacity*opacity)
-		d.Draw()
-		d.SetWinding(true) // default is true
+		filler.SetColor(svgp.Style.FillerColor, svgp.Style.FillOpacity*opacity)
+		filler.Draw()
+		filler.SetWinding(true) // default is true
 	}
 
-	if svgp.Style.LinerColor != nil { // nil color disable lining
-		d.Clear()
+	if stroker != nil { // nil color disable lining
+		stroker.Clear()
 
 		lineGap := svgp.Style.Join.LineGap
 		if lineGap == NilGap {
@@ -217,7 +247,7 @@ func (svgp *SvgPath) drawTransformed(d Driver, opacity float64, t Matrix2D) {
 		if svgp.Style.Join.LeadLineCap != NilCap {
 			leadLineCap = svgp.Style.Join.LeadLineCap
 		}
-		d.SetStrokeOptions(StrokeOptions{
+		stroker.SetStrokeOptions(StrokeOptions{
 			LineWidth: fixed.Int26_6(svgp.Style.LineWidth * 64),
 			Join: JoinOptions{
 				MiterLimit:   svgp.Style.Join.MiterLimit,
@@ -229,13 +259,12 @@ func (svgp *SvgPath) drawTransformed(d Driver, opacity float64, t Matrix2D) {
 			Dash: svgp.Style.Dash,
 		})
 
-		d.SetFillingMode(false)
 		for _, op := range svgp.Path {
-			op.drawTo(d, svgp.Style.transform)
+			op.drawTo(stroker, svgp.Style.transform)
 		}
-		d.Stop(false)
+		stroker.Stop(false)
 
-		d.SetStrokeColor(svgp.Style.LinerColor, svgp.Style.LineOpacity*opacity)
-		d.Draw()
+		stroker.SetColor(svgp.Style.LinerColor, svgp.Style.LineOpacity*opacity)
+		stroker.Draw()
 	}
 }
