@@ -1,11 +1,7 @@
 package svgicon
 
 import (
-	"io"
-	"os"
 	"strings"
-
-	"golang.org/x/net/html/charset"
 
 	"encoding/xml"
 	"errors"
@@ -24,16 +20,15 @@ func init() {
 type (
 	// PathStyle holds the state of the SVG style
 	PathStyle struct {
-		FillOpacity, LineOpacity          float64
-		LineWidth, DashOffset, MiterLimit float64
-		Dash                              []float64
-		UseNonZeroWinding                 bool
-		FillerColor, LinerColor           Pattern // either PlainColor or Gradient
-		LineGap                           GapFunc
-		LeadLineCap                       CapFunc // This is used if different than LineCap
-		LineCap                           CapFunc
-		LineJoin                          JoinMode
-		transform                         Matrix2D // current transform
+		FillOpacity, LineOpacity float64
+		LineWidth                float64
+		UseNonZeroWinding        bool
+
+		Join                    JoinOptions
+		Dash                    DashOptions
+		FillerColor, LinerColor Pattern // either PlainColor or Gradient
+
+		transform Matrix2D // current transform
 	}
 
 	// SvgPath binds a style to a path
@@ -47,10 +42,11 @@ type (
 		ViewBox      struct{ X, Y, W, H float64 }
 		Titles       []string // Title elements collect here
 		Descriptions []string // Description elements collect here
-		Grads        map[string]*Gradient
-		Defs         map[string][]definition
 		SVGPaths     []SvgPath
 		Transform    Matrix2D
+
+		grads map[string]*Gradient
+		defs  map[string][]definition
 	}
 
 	// iconCursor is used while parsing SVG files
@@ -70,11 +66,25 @@ type (
 	}
 )
 
+func fToFixed(f float64) fixed.Int26_6 {
+	return fixed.Int26_6(f * 64)
+}
+
 // DefaultStyle sets the default PathStyle to fill black, winding rule,
 // full opacity, no stroke, ButtCap line end and Bevel line connect.
-var DefaultStyle = PathStyle{1.0, 1.0, 2.0, 0.0, 4.0, nil, true,
-	NewPlainColor(0x00, 0x00, 0x00, 0xff), nil,
-	nil, nil, ButtCap, Bevel, Identity}
+var DefaultStyle = PathStyle{
+	FillOpacity:       1.0,
+	LineOpacity:       1.0,
+	LineWidth:         2.0,
+	UseNonZeroWinding: true,
+	Join: JoinOptions{
+		MiterLimit:   fToFixed(4),
+		LineJoin:     Bevel,
+		TrailLineCap: ButtCap,
+	},
+	FillerColor: NewPlainColor(0x00, 0x00, 0x00, 0xff),
+	transform:   Identity,
+}
 
 func (c *iconCursor) readTransformAttr(m1 Matrix2D, k string) (Matrix2D, error) {
 	ln := len(c.points)
@@ -184,61 +194,61 @@ func (c *iconCursor) readStyleAttr(curStyle *PathStyle, k, v string) error {
 	case "stroke-linegap":
 		switch v {
 		case "flat":
-			curStyle.LineGap = FlatGap
+			curStyle.Join.LineGap = FlatGap
 		case "round":
-			curStyle.LineGap = RoundGap
+			curStyle.Join.LineGap = RoundGap
 		case "cubic":
-			curStyle.LineGap = CubicGap
+			curStyle.Join.LineGap = CubicGap
 		case "quadratic":
-			curStyle.LineGap = QuadraticGap
+			curStyle.Join.LineGap = QuadraticGap
 		}
 	case "stroke-leadlinecap":
 		switch v {
 		case "butt":
-			curStyle.LeadLineCap = ButtCap
+			curStyle.Join.LeadLineCap = ButtCap
 		case "round":
-			curStyle.LeadLineCap = RoundCap
+			curStyle.Join.LeadLineCap = RoundCap
 		case "square":
-			curStyle.LeadLineCap = SquareCap
+			curStyle.Join.LeadLineCap = SquareCap
 		case "cubic":
-			curStyle.LeadLineCap = CubicCap
+			curStyle.Join.LeadLineCap = CubicCap
 		case "quadratic":
-			curStyle.LeadLineCap = QuadraticCap
+			curStyle.Join.LeadLineCap = QuadraticCap
 		}
 	case "stroke-linecap":
 		switch v {
 		case "butt":
-			curStyle.LineCap = ButtCap
+			curStyle.Join.TrailLineCap = ButtCap
 		case "round":
-			curStyle.LineCap = RoundCap
+			curStyle.Join.TrailLineCap = RoundCap
 		case "square":
-			curStyle.LineCap = SquareCap
+			curStyle.Join.TrailLineCap = SquareCap
 		case "cubic":
-			curStyle.LineCap = CubicCap
+			curStyle.Join.TrailLineCap = CubicCap
 		case "quadratic":
-			curStyle.LineCap = QuadraticCap
+			curStyle.Join.TrailLineCap = QuadraticCap
 		}
 	case "stroke-linejoin":
 		switch v {
 		case "miter":
-			curStyle.LineJoin = Miter
+			curStyle.Join.LineJoin = Miter
 		case "miter-clip":
-			curStyle.LineJoin = MiterClip
+			curStyle.Join.LineJoin = MiterClip
 		case "arc-clip":
-			curStyle.LineJoin = ArcClip
+			curStyle.Join.LineJoin = ArcClip
 		case "round":
-			curStyle.LineJoin = Round
+			curStyle.Join.LineJoin = Round
 		case "arc":
-			curStyle.LineJoin = Arc
+			curStyle.Join.LineJoin = Arc
 		case "bevel":
-			curStyle.LineJoin = Bevel
+			curStyle.Join.LineJoin = Bevel
 		}
 	case "stroke-miterlimit":
 		mLimit, err := parseFloat(v, 64)
 		if err != nil {
 			return err
 		}
-		curStyle.MiterLimit = mLimit
+		curStyle.Join.MiterLimit = fToFixed(mLimit)
 	case "stroke-width":
 		width, err := parseFloat(v, 64)
 		if err != nil {
@@ -250,7 +260,7 @@ func (c *iconCursor) readStyleAttr(curStyle *PathStyle, k, v string) error {
 		if err != nil {
 			return err
 		}
-		curStyle.DashOffset = dashOffset
+		curStyle.Dash.DashOffset = dashOffset
 	case "stroke-dasharray":
 		if v != "none" {
 			dashes := splitOnCommaOrSpace(v)
@@ -262,7 +272,7 @@ func (c *iconCursor) readStyleAttr(curStyle *PathStyle, k, v string) error {
 				}
 				dList[i] = d
 			}
-			curStyle.Dash = dList
+			curStyle.Dash.Dash = dList
 			break
 		}
 	case "opacity", "stroke-opacity", "fill-opacity":
@@ -338,7 +348,7 @@ func (c *iconCursor) readStartElement(se xml.StartElement) (err error) {
 			}
 		}
 		if ID != "" && len(c.currentDef) > 0 {
-			c.icon.Defs[c.currentDef[0].ID] = c.currentDef
+			c.icon.defs[c.currentDef[0].ID] = c.currentDef
 			c.currentDef = make([]definition, 0)
 		}
 		c.currentDef = append(c.currentDef, definition{
@@ -368,85 +378,6 @@ func (c *iconCursor) readStartElement(se xml.StartElement) (err error) {
 		c.path = c.path[:0]
 	}
 	return
-}
-
-// ReadIconStream reads the Icon from the given io.Reader
-// This only supports a sub-set of SVG, but
-// is enough to draw many icons. errMode determines if the icon ignores, errors out, or logs a warning
-// if it does not handle an element found in the icon file.
-func ReadIconStream(stream io.Reader, errMode ErrorMode) (*SvgIcon, error) {
-	icon := &SvgIcon{Defs: make(map[string][]definition), Grads: make(map[string]*Gradient), Transform: Identity}
-	cursor := &iconCursor{styleStack: []PathStyle{DefaultStyle}, icon: icon}
-	cursor.errorMode = errMode
-	decoder := xml.NewDecoder(stream)
-	decoder.CharsetReader = charset.NewReaderLabel
-	for {
-		t, err := decoder.Token()
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return icon, err
-		}
-		// Inspect the type of the XML token
-		switch se := t.(type) {
-		case xml.StartElement:
-			// Reads all recognized style attributes from the start element
-			// and places it on top of the styleStack
-			err = cursor.pushStyle(se.Attr)
-			if err != nil {
-				return icon, err
-			}
-			err = cursor.readStartElement(se)
-			if err != nil {
-				return icon, err
-			}
-		case xml.EndElement:
-			// pop style
-			cursor.styleStack = cursor.styleStack[:len(cursor.styleStack)-1]
-			switch se.Name.Local {
-			case "g":
-				if cursor.inDefs {
-					cursor.currentDef = append(cursor.currentDef, definition{
-						Tag: "endg",
-					})
-				}
-			case "title":
-				cursor.inTitleText = false
-			case "desc":
-				cursor.inDescText = false
-			case "defs":
-				if len(cursor.currentDef) > 0 {
-					cursor.icon.Defs[cursor.currentDef[0].ID] = cursor.currentDef
-					cursor.currentDef = make([]definition, 0)
-				}
-				cursor.inDefs = false
-			case "radialGradient", "linearGradient":
-				cursor.inGrad = false
-			}
-		case xml.CharData:
-			if cursor.inTitleText {
-				icon.Titles[len(icon.Titles)-1] += string(se)
-			}
-			if cursor.inDescText {
-				icon.Descriptions[len(icon.Descriptions)-1] += string(se)
-			}
-		}
-	}
-	return icon, nil
-}
-
-// ReadIcon reads the Icon from the named file
-// This only supports a sub-set of SVG, but
-// is enough to draw many icons. errMode determines if the icon ignores, errors out, or logs a warning
-// if it does not handle an element found in the icon file.
-func ReadIcon(iconFile string, errMode ErrorMode) (*SvgIcon, error) {
-	fin, errf := os.Open(iconFile)
-	if errf != nil {
-		return nil, errf
-	}
-	defer fin.Close()
-	return ReadIconStream(fin, errMode)
 }
 
 func readFraction(v string) (f float64, err error) {
@@ -674,7 +605,7 @@ func linearGradientF(c *iconCursor, attrs []xml.Attr) error {
 		case "id":
 			id := attr.Value
 			if len(id) >= 0 {
-				c.icon.Grads[id] = c.grad
+				c.icon.grads[id] = c.grad
 			} else {
 				return errZeroLengthID
 			}
@@ -708,7 +639,7 @@ func radialGradientF(c *iconCursor, attrs []xml.Attr) error {
 		case "id":
 			id := attr.Value
 			if len(id) >= 0 {
-				c.icon.Grads[id] = c.grad
+				c.icon.grads[id] = c.grad
 			} else {
 				return errZeroLengthID
 			}
@@ -794,7 +725,7 @@ func useF(c *iconCursor, attrs []xml.Attr) error {
 	if !strings.HasPrefix(href, "#") {
 		return errors.New("only the ID CSS selector is supported")
 	}
-	defs, ok := c.icon.Defs[href[1:]]
+	defs, ok := c.icon.defs[href[1:]]
 	if !ok {
 		return errors.New("href ID in use statement was not found in saved defs")
 	}

@@ -239,7 +239,7 @@ func (c *iconCursor) readGradURL(v string, defaultColor Pattern) (grad Gradient,
 		urlStr := strings.TrimSpace(v[4 : len(v)-1])
 		if strings.HasPrefix(urlStr, "#") {
 			var g *Gradient
-			g, ok = c.icon.Grads[urlStr[1:]]
+			g, ok = c.icon.grads[urlStr[1:]]
 			if ok {
 				grad = localizeGradIfStopClrNil(g, defaultColor)
 			}

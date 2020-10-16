@@ -34,6 +34,13 @@ func (p *Path) addRect(minX, minY, maxX, maxY, rot float64) {
 	q.path.Stop(true)
 }
 
+// roundGap bridges miter-limit gaps with a circular arc
+func roundGap(p *matrixAdder, a, tNorm, lNorm fixed.Point26_6) {
+	strokeArc(p, a, a.Add(tNorm), a.Add(lNorm), true, 0, 0, p.Line)
+	p.Line(a.Add(lNorm)) // just to be sure line joins cleanly,
+	// last pt in stoke arc may not be precisely s2
+}
+
 // addRoundRect adds a rectangle of the indicated size, rotated
 // around the center by rot degrees with rounded corners of radius
 // rx in the x axis and ry in the y axis. gf specifes the shape of the
@@ -63,13 +70,13 @@ func (p *Path) addRoundRect(minX, minY, maxX, maxY, rx, ry, rot float64) {
 
 	q.Start(toFixedP(minX+rx, minY))
 	q.Line(toFixedP(maxX-rx, minY))
-	RoundGap(q, toFixedP(maxX-rx, minY+rx), toFixedP(0, -rx), toFixedP(rx, 0))
+	roundGap(q, toFixedP(maxX-rx, minY+rx), toFixedP(0, -rx), toFixedP(rx, 0))
 	q.Line(toFixedP(maxX, maxY-rx))
-	RoundGap(q, toFixedP(maxX-rx, maxY-rx), toFixedP(rx, 0), toFixedP(0, rx))
+	roundGap(q, toFixedP(maxX-rx, maxY-rx), toFixedP(rx, 0), toFixedP(0, rx))
 	q.Line(toFixedP(minX+rx, maxY))
-	RoundGap(q, toFixedP(minX+rx, maxY-rx), toFixedP(0, rx), toFixedP(-rx, 0))
+	roundGap(q, toFixedP(minX+rx, maxY-rx), toFixedP(0, rx), toFixedP(-rx, 0))
 	q.Line(toFixedP(minX, minY+rx))
-	RoundGap(q, toFixedP(minX+rx, minY+rx), toFixedP(-rx, 0), toFixedP(0, -rx))
+	roundGap(q, toFixedP(minX+rx, minY+rx), toFixedP(-rx, 0), toFixedP(0, -rx))
 	q.path.Stop(true)
 }
 

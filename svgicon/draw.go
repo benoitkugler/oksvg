@@ -11,6 +11,8 @@ import (
 
 // Driver knows how to do the actual draw operations
 // but doesn't need any SVG kwowledge
+// In particular, tranformations matrix are already applied to the points
+// before sending them to the Driver.
 type Driver interface {
 	// Clear must reset the internal state (used before starting a new path painting)
 	Clear()
@@ -20,6 +22,12 @@ type Driver interface {
 
 	// Set the filling color (plain color or gradient)
 	SetFillColor(color Pattern, opacity float64)
+
+	// Set the stroking color (plain color or gradient)
+	SetStrokeColor(color Pattern, opacity float64)
+
+	// Parametrize the stroking style
+	SetStrokeOptions(options StrokeOptions)
 
 	// Start starts a new path at the given point.
 	Start(a fixed.Point26_6)
@@ -33,8 +41,73 @@ type Driver interface {
 	// CubeBezier adds a cubic bezier curve to the path
 	CubeBezier(b, c, d fixed.Point26_6)
 
-	// Draw draws the accumulated path using the current fill and stroke color
-	Draw()
+	// Closes the path to the start point if `closeLoop` is true
+	Stop(closeLoop bool)
+
+	// Fill fills the accumulated path using the current fill color
+	Fill()
+
+	// Stroke strokes the accumulated path using the current stroke settings
+	Stroke()
+}
+
+type DashOptions struct {
+	Dash       []float64 // values for the dash pattern (nil or an empty slice for no dashes)
+	DashOffset float64   // starting offset into the dash array
+}
+
+// JoinMode type to specify how segments join.
+type JoinMode uint8
+
+// JoinMode constants determine how stroke segments bridge the gap at a join
+// ArcClip mode is like MiterClip applied to arcs, and is not part of the SVG2.0
+// standard.
+const (
+	Round JoinMode = iota
+	Bevel
+	Miter
+	MiterClip // New in SVG2
+	Arc       // New in SVG2
+	ArcClip   // Like MiterClip applied to arcs, and is not part of the SVG2.0 standard.
+)
+
+// CapMode defines how to draw caps on the ends of lines
+type CapMode uint8
+
+const (
+	NilCap CapMode = iota
+	ButtCap
+	SquareCap
+	RoundCap
+	CubicCap     // Not part of the SVG2.0 standard.
+	QuadraticCap // Not part of the SVG2.0 standard.
+)
+
+// GapMode defines how to bridge gaps when the miter limit is exceeded,
+// and is not part of the SVG2.0 standard.
+type GapMode uint8
+
+const (
+	NilGap GapMode = iota
+	FlatGap
+	RoundGap
+	CubicGap
+	QuadraticGap
+)
+
+type JoinOptions struct {
+	MiterLimit   fixed.Int26_6 // he miter cutoff value for miter, arc, miterclip and arcClip joinModes
+	LineJoin     JoinMode      // JoinMode for curve segments
+	TrailLineCap CapMode       // capping functions for leading and trailing line ends. If one is nil, the other function is used at both ends.
+
+	LeadLineCap CapMode // not part of the standard specification
+	LineGap     GapMode // not part of the standard specification. determines how a gap on the convex side of two lines joining is filled
+}
+
+type StrokeOptions struct {
+	LineWidth fixed.Int26_6 // width of the line
+	Join      JoinOptions
+	Dash      DashOptions
 }
 
 // SetTarget sets the Transform matrix to draw within the bounds of the rectangle arguments
@@ -58,9 +131,46 @@ func (svgp *SvgPath) drawTransformed(d Driver, opacity float64, t Matrix2D) {
 	svgp.Style.transform = t.Mult(m)
 	defer func() { svgp.Style.transform = m }() // Restore untransformed matrix
 
-	svgp.drawFill(d, opacity)
+	d.Clear() // TODO: neccesary ?
+	d.SetWinding(svgp.Style.UseNonZeroWinding)
+	d.SetFillColor(svgp.Style.FillerColor, svgp.Style.FillOpacity*opacity)
+	d.SetStrokeColor(svgp.Style.LinerColor, svgp.Style.LineOpacity*opacity)
 
-	if svgp.Style.LinerColor != nil { // // nil color disable lining
-		svgp.drawLine(d, opacity)
+	lineGap := svgp.Style.Join.LineGap
+	if lineGap == NilGap {
+		lineGap = DefaultStyle.Join.LineGap
+	}
+	lineCap := svgp.Style.Join.TrailLineCap
+	if lineCap == NilCap {
+		lineCap = DefaultStyle.Join.TrailLineCap
+	}
+	leadLineCap := lineCap
+	if svgp.Style.Join.LeadLineCap != NilCap {
+		leadLineCap = svgp.Style.Join.LeadLineCap
+	}
+	d.SetStrokeOptions(StrokeOptions{
+		LineWidth: fixed.Int26_6(svgp.Style.LineWidth * 64),
+		Join: JoinOptions{
+			MiterLimit:   svgp.Style.Join.MiterLimit,
+			LineJoin:     svgp.Style.Join.LineJoin,
+			LeadLineCap:  leadLineCap,
+			TrailLineCap: lineCap,
+			LineGap:      lineGap,
+		},
+		Dash: svgp.Style.Dash,
+	})
+
+	for _, op := range svgp.Path {
+		op.drawTo(d, svgp.Style.transform)
+	}
+	d.Stop(true)
+
+	if svgp.Style.FillerColor != nil { // nil color disable filling
+		d.Fill()
+		d.SetWinding(true) // default is true
+	}
+
+	if svgp.Style.LinerColor != nil { // nil color disable lining
+		d.Stroke()
 	}
 }

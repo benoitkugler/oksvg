@@ -28,13 +28,8 @@ type pathCommand uint8
 
 // Operation groups the different SVG commands
 type Operation interface {
-	// fill itself on the driver `d`, using the context in `f`
-	// after apllying the transform `M`
-	fill(f *filler, d Driver, M Matrix2D)
-
-	// stroke itself on the driver `d`, using the context in `f`
-	// after apllying the transform `M`
-	stroke(f *stroker, d Driver, M Matrix2D)
+	// add itself on the driver `d`, after aplying the transform `M`
+	drawTo(d Driver, M Matrix2D)
 }
 
 type MoveTo fixed.Point26_6
@@ -46,6 +41,32 @@ type QuadTo [2]fixed.Point26_6
 type CubicTo [3]fixed.Point26_6
 
 type Close struct{}
+
+// starts a new path at the given point.
+func (op MoveTo) drawTo(d Driver, M Matrix2D) {
+	d.Start(M.trMove(op))
+}
+
+// draw a line
+func (op LineTo) drawTo(d Driver, M Matrix2D) {
+	d.Line(M.trLine(op))
+}
+
+// draw a quadratic bezier curve
+func (op QuadTo) drawTo(d Driver, M Matrix2D) {
+	b, c := M.trQuad(op)
+	d.QuadBezier(b, c)
+}
+
+// draw a cubic bezier curve
+func (op CubicTo) drawTo(d Driver, M Matrix2D) {
+	b, c, d_ := M.trCubic(op)
+	d.CubeBezier(b, c, d_)
+}
+
+func (op Close) drawTo(d Driver, _ Matrix2D) {
+	d.Stop(true)
+}
 
 // Path describes a sequence of basic SVG operations, which should not be nil
 // Higher-level shapes may be reduced to a path.
@@ -109,23 +130,3 @@ func (p *Path) Stop(closeLoop bool) {
 		*p = append(*p, Close{})
 	}
 }
-
-// // AddTo adds the Path p to q.
-// func (p Path) AddTo(q Adder) {
-// 	for _, op := range p {
-// 		switch op := op.(type) {
-// 		case MoveTo:
-// 			q.Stop(false) // Fixes issues #1 by described by Djadala; implicit close if currently in path.
-// 			q.Start(fixed.Point26_6(op))
-// 		case LineTo:
-// 			q.Line(fixed.Point26_6(op))
-// 		case QuadTo:
-// 			q.QuadBezier(op[0], op[1])
-// 		case CubicTo:
-// 			q.CubeBezier(op[0], op[1], op[2])
-// 		case Close:
-// 			q.Stop(true)
-// 		}
-// 	}
-// 	q.Stop(false)
-// }
