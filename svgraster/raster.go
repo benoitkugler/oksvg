@@ -12,14 +12,13 @@ import (
 
 // assert interface conformance
 var (
-	_ svgicon.Driver  = (*Renderer)(nil)
+	_ svgicon.Driver  = Renderer{}
 	_ svgicon.Filler  = filler{}
 	_ svgicon.Stroker = stroker{}
 )
 
 type Renderer struct {
-	dasher    *rasterx.Dasher
-	isFilling bool
+	dasher *rasterx.Dasher
 }
 
 type filler struct {
@@ -31,9 +30,6 @@ type stroker struct {
 }
 
 // NewRenderer returns a renderer with default values.
-// In addition to rasterizing lines like a Scanner,
-// it can also rasterize quadratic and cubic bezier curves.
-// If scanner is nil, a default scanner rasterx.ScannerGV is used
 func NewRenderer(width, height int, scanner rasterx.Scanner) *Renderer {
 	return &Renderer{dasher: rasterx.NewDasher(width, height, scanner)}
 }
@@ -48,9 +44,10 @@ func (rd Renderer) SetupDrawers(willFill, willStroke bool) (f svgicon.Filler, s 
 	return f, s
 }
 
-// RasterSVGIconToImage uses a ScannerGV instance to renderer the
-// icon into an image and returns it
-func RasterSVGIconToImage(icon io.Reader) (*image.RGBA, error) {
+// RasterSVGIconToImage uses a scanner instance to renderer the
+// icon into an image and return it.
+// If `scanner` is nil, a default scanner rasterx.ScannerGV is used.
+func RasterSVGIconToImage(icon io.Reader, scanner rasterx.Scanner) (*image.RGBA, error) {
 	parsedIcon, err := svgicon.ReadIconStream(icon, svgicon.WarnErrorMode)
 	if err != nil {
 		return nil, err
@@ -58,7 +55,9 @@ func RasterSVGIconToImage(icon io.Reader) (*image.RGBA, error) {
 	w, h := int(parsedIcon.ViewBox.W), int(parsedIcon.ViewBox.H)
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
 
-	scanner := rasterx.NewScannerGV(w, h, img, img.Bounds())
+	if scanner == nil {
+		scanner = rasterx.NewScannerGV(w, h, img, img.Bounds())
+	}
 	renderer := NewRenderer(w, h, scanner)
 	parsedIcon.Draw(renderer, 1.0)
 	return img, nil

@@ -20,6 +20,7 @@ func toPngBytes(m image.Image) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return b.Bytes(), nil
 }
 
@@ -38,7 +39,7 @@ func renderIcon(t *testing.T, filename string) {
 	if err != nil {
 		t.Fatalf("can't open svg source: %s", err)
 	}
-	img, err := RasterSVGIconToImage(f)
+	img, err := RasterSVGIconToImage(f, nil)
 	if err != nil {
 		t.Fatalf("can't raster image: %s", err)
 	}
@@ -54,7 +55,7 @@ func renderIcon(t *testing.T, filename string) {
 		t.Fatalf("can't retrieve binary from image: %s", err)
 	}
 
-	// comparison with oksvg , requires to run its test first
+	// comparison with oksvg, requires to run its test first
 	ref, err := ioutil.ReadFile(fmt.Sprintf("../../../srwiley/oksvg/testdata/%s.svg.png", name))
 	if err != nil {
 		t.Fatalf("can't load reference image: %s", err)
@@ -116,8 +117,4 @@ func TestStrokeIcons(t *testing.T) {
 	} {
 		renderIcon(t, "testdata/"+p)
 	}
-}
-
-func TestOther(t *testing.T) {
-	renderIcon(t, "testdata/TestShapes6.svg")
 }

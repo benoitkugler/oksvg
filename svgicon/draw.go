@@ -57,12 +57,11 @@ type Stroker interface {
 type Driver interface {
 	// SetupDrawers returns the backend painters, and
 	// will be called at the begining of every path.
-	// If the willXXX is false, the returned drawer should be nil
+	// If the `willXXX` boolean is false, the returned drawer should be nil
 	// to avoid useless operations.
 	// When both booleans are true, one can assume that the exact same draw operations
 	// will be performed on the Filler first and then on the Stroker.
-	// This promise may enable the implentation to avoid duplicating paths
-	// both filled and stroked
+	// This promise may enable the implementation to avoid duplicating filled and stroked paths
 	SetupDrawers(willFill, willStroke bool) (Filler, Stroker)
 }
 
