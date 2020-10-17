@@ -11,21 +11,29 @@ import (
 
 // Operation groups the different SVG commands
 type Operation interface {
-	// add itself on the driver `d`, after aplying the transform `M`
-	drawTo(d Drawer, M Matrix2D)
-
 	// SVG text representation of the command
 	fmt.Stringer
+
+	// add itself on the driver `d`, after aplying the transform `M`
+	drawTo(d Drawer, M Matrix2D)
 }
 
+// OpMoveTo moves the current point.
 type OpMoveTo fixed.Point26_6
 
+// OpLineTo draws a line from the current point,
+// and updates it.
 type OpLineTo fixed.Point26_6
 
+// OpQuadTo draws a quadratic Bezier curve from the current point,
+// and updates it.
 type OpQuadTo [2]fixed.Point26_6
 
+// OpCubicTo draws a cubic Bezier curve from the current point,
+// and updates it.
 type OpCubicTo [3]fixed.Point26_6
 
+// OpClose close the current path.
 type OpClose struct{}
 
 // starts a new path at the given point.
