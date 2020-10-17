@@ -29,7 +29,8 @@ type stroker struct {
 	*rasterx.Dasher
 }
 
-// NewRenderer returns a renderer with default values.
+// NewRenderer returns a renderer with default values,
+// which will raster into `scanner`.
 func NewRenderer(width, height int, scanner rasterx.Scanner) *Renderer {
 	return &Renderer{dasher: rasterx.NewDasher(width, height, scanner)}
 }

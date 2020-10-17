@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"golang.org/x/image/math/fixed"
 )
 
 func toPngBytes(m image.Image) ([]byte, error) {
@@ -117,4 +119,10 @@ func TestStrokeIcons(t *testing.T) {
 	} {
 		renderIcon(t, "testdata/"+p)
 	}
+}
+
+func TestFixed(t *testing.T) {
+	a := fixed.Int26_6(456456487)
+	fmt.Println(float64(a >> 6))
+	fmt.Println(float64(a) / 64)
 }
