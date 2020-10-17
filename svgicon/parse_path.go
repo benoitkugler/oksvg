@@ -1,6 +1,6 @@
 package svgicon
 
-// svgd.go implements translation of an SVG2.0 path into a Path.
+// this file implements the translation of an SVG2.0 path into a Path.
 
 import (
 	"errors"
