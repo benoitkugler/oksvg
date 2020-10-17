@@ -12,12 +12,12 @@ import (
 
 // assert interface conformance
 var (
-	_ svgicon.Driver  = Renderer{}
+	_ svgicon.Driver  = Driver{}
 	_ svgicon.Filler  = filler{}
 	_ svgicon.Stroker = stroker{}
 )
 
-type Renderer struct {
+type Driver struct {
 	dasher *rasterx.Dasher
 }
 
@@ -29,13 +29,13 @@ type stroker struct {
 	*rasterx.Dasher
 }
 
-// NewRenderer returns a renderer with default values,
+// NewDriver returns a renderer with default values,
 // which will raster into `scanner`.
-func NewRenderer(width, height int, scanner rasterx.Scanner) *Renderer {
-	return &Renderer{dasher: rasterx.NewDasher(width, height, scanner)}
+func NewDriver(width, height int, scanner rasterx.Scanner) Driver {
+	return Driver{dasher: rasterx.NewDasher(width, height, scanner)}
 }
 
-func (rd Renderer) SetupDrawers(willFill, willStroke bool) (f svgicon.Filler, s svgicon.Stroker) {
+func (rd Driver) SetupDrawers(willFill, willStroke bool) (f svgicon.Filler, s svgicon.Stroker) {
 	if willFill {
 		f = filler{Filler: &rd.dasher.Filler}
 	}
@@ -59,7 +59,7 @@ func RasterSVGIconToImage(icon io.Reader, scanner rasterx.Scanner) (*image.RGBA,
 	if scanner == nil {
 		scanner = rasterx.NewScannerGV(w, h, img, img.Bounds())
 	}
-	renderer := NewRenderer(w, h, scanner)
+	renderer := NewDriver(w, h, scanner)
 	parsedIcon.Draw(renderer, 1.0)
 	return img, nil
 }
