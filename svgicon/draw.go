@@ -32,18 +32,14 @@ type Drawer interface {
 	// Closes the path to the start point if `closeLoop` is true
 	Stop(closeLoop bool)
 
-	// SetColor set the color for the current path
-	SetColor(color Pattern, opacity float64)
-
-	// Draw fills or strokes the accumulated path using the current settings
-	// depending on the filling mode
-	Draw()
+	// Draw fills or strokes the accumulated path using the given color
+	Draw(color Pattern, opacity float64)
 }
 
 type Filler interface {
 	Drawer
 
-	// Decide to use or not the NonZeroWinding rule for the current path
+	// Decide to use or not the "non-zero winding" rule for the current path
 	SetWinding(useNonZeroWinding bool)
 }
 
@@ -229,8 +225,7 @@ func (svgp *SvgPath) drawTransformed(d Driver, opacity float64, t Matrix2D) {
 		}
 		filler.Stop(false)
 
-		filler.SetColor(svgp.Style.FillerColor, svgp.Style.FillOpacity*opacity)
-		filler.Draw()
+		filler.Draw(svgp.Style.FillerColor, svgp.Style.FillOpacity*opacity)
 		filler.SetWinding(true) // default is true
 	}
 
@@ -266,7 +261,6 @@ func (svgp *SvgPath) drawTransformed(d Driver, opacity float64, t Matrix2D) {
 		}
 		stroker.Stop(false)
 
-		stroker.SetColor(svgp.Style.LinerColor, svgp.Style.LineOpacity*opacity)
-		stroker.Draw()
+		stroker.Draw(svgp.Style.LinerColor, svgp.Style.LineOpacity*opacity)
 	}
 }

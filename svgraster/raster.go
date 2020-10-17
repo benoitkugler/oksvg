@@ -110,12 +110,14 @@ func setColorFromPattern(color svgicon.Pattern, opacity float64, scanner rasterx
 	}
 }
 
-func (f filler) SetColor(color svgicon.Pattern, opacity float64) {
+func (f filler) Draw(color svgicon.Pattern, opacity float64) {
 	setColorFromPattern(color, opacity, f.Scanner)
+	f.Filler.Draw()
 }
 
-func (s stroker) SetColor(color svgicon.Pattern, opacity float64) {
+func (s stroker) Draw(color svgicon.Pattern, opacity float64) {
 	setColorFromPattern(color, opacity, s.Scanner)
+	s.Dasher.Draw()
 }
 
 var (
