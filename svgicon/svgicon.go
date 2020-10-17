@@ -31,7 +31,8 @@ type SvgPath struct {
 	Style PathStyle
 }
 
-// SvgIcon holds data from parsed SVGs
+// SvgIcon holds data from parsed SVGs.
+// See the `Draw` methods to use it.
 type SvgIcon struct {
 	ViewBox      struct{ X, Y, W, H float64 }
 	Titles       []string // Title elements collect here

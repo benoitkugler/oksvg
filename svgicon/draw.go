@@ -203,7 +203,10 @@ func (s *SvgIcon) SetTarget(x, y, w, h float64) {
 }
 
 // Draw the compiled SVG icon into the driver `d`.
-// All elements should be contained by the Bounds rectangle of the SvgIcon.
+// `opacity` is composed (mutliplied) with the eventual
+// <stroke-opacity> and <fill-opacity> style attributes.
+// All elements should be contained by the Bounds rectangle of the SvgIcon:
+// see `SetTarget` method.
 func (s *SvgIcon) Draw(d Driver, opacity float64) {
 	for _, svgp := range s.SVGPaths {
 		svgp.drawTransformed(d, opacity, s.Transform)
