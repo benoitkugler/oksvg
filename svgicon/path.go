@@ -13,6 +13,9 @@ import (
 type Operation interface {
 	// add itself on the driver `d`, after aplying the transform `M`
 	drawTo(d Drawer, M Matrix2D)
+
+	// SVG text representation of the command
+	fmt.Stringer
 }
 
 type OpMoveTo fixed.Point26_6
@@ -52,6 +55,28 @@ func (op OpClose) drawTo(d Drawer, _ Matrix2D) {
 	d.Stop(true)
 }
 
+func (op OpMoveTo) String() string {
+	return fmt.Sprintf("M%4.3f,%4.3f", float32(op.X)/64, float32(op.Y)/64)
+}
+
+func (op OpLineTo) String() string {
+	return fmt.Sprintf("L%4.3f,%4.3f", float32(op.X)/64, float32(op.Y)/64)
+}
+
+func (op OpQuadTo) String() string {
+	return fmt.Sprintf("Q%4.3f,%4.3f,%4.3f,%4.3f", float32(op[0].X)/64, float32(op[0].Y)/64,
+		float32(op[1].X)/64, float32(op[1].Y)/64)
+}
+
+func (op OpCubicTo) String() string {
+	return "C" + fmt.Sprintf("C%4.3f,%4.3f,%4.3f,%4.3f,%4.3f,%4.3f", float32(op[0].X)/64, float32(op[0].Y)/64,
+		float32(op[1].X)/64, float32(op[1].Y)/64, float32(op[2].X)/64, float32(op[2].Y)/64)
+}
+
+func (op OpClose) String() string {
+	return "Z"
+}
+
 // Path describes a sequence of basic SVG operations, which should not be nil
 // Higher-level shapes may be reduced to a path.
 type Path []Operation
@@ -60,20 +85,7 @@ type Path []Operation
 func (p Path) ToSVGPath() string {
 	chunks := make([]string, len(p))
 	for i, op := range p {
-		switch op := op.(type) {
-		case OpMoveTo:
-			chunks[i] = fmt.Sprintf("M%4.3f,%4.3f", float32(op.X)/64, float32(op.Y)/64)
-		case OpLineTo:
-			chunks[i] = fmt.Sprintf("L%4.3f,%4.3f", float32(op.X)/64, float32(op.Y)/64)
-		case OpQuadTo:
-			chunks[i] = fmt.Sprintf("Q%4.3f,%4.3f,%4.3f,%4.3f", float32(op[0].X)/64, float32(op[0].Y)/64,
-				float32(op[1].X)/64, float32(op[1].Y)/64)
-		case OpCubicTo:
-			chunks[i] = "C" + fmt.Sprintf("C%4.3f,%4.3f,%4.3f,%4.3f,%4.3f,%4.3f", float32(op[0].X)/64, float32(op[0].Y)/64,
-				float32(op[1].X)/64, float32(op[1].Y)/64, float32(op[2].X)/64, float32(op[2].Y)/64)
-		case OpClose:
-			chunks[i] = "Z"
-		}
+		chunks[i] = op.String()
 	}
 	return strings.Join(chunks, " ")
 }
