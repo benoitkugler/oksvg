@@ -158,8 +158,6 @@ const (
 	RepeatSpread
 )
 
-const epsilonF = 1e-5
-
 // GradStop represents a stop in the SVG 2.0 gradient specification
 type GradStop struct {
 	StopColor color.Color

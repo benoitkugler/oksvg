@@ -24,10 +24,9 @@ const (
 )
 
 var (
-	errParamMismatch  = errors.New("Param mismatch")
-	errCommandUnknown = errors.New("Unknown command")
+	errParamMismatch  = errors.New("param mismatch")
+	errCommandUnknown = errors.New("unknown command")
 	errZeroLengthID   = errors.New("zero length id")
-	errMissingID      = errors.New("cannot find id")
 )
 
 // pathCursor is used to parse SVG format path strings into a Path
