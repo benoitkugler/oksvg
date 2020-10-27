@@ -14,7 +14,7 @@ import (
 // In particular, tranformations matrix are already applied to the points
 // before sending them to the Drawer.
 type Drawer interface {
-	// Clear must reset the internal state (used before starting a new path painting)
+	// Clear must reset the internal state, before starting a new path painting
 	Clear()
 
 	// Start starts a new path at the given point.
