@@ -1,36 +1,47 @@
-package svgraster
+package svgpdf
 
 import (
-	"bytes"
 	"fmt"
-	"image"
-	"image/png"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/benoitkugler/gofpdf"
 )
 
-func toPngBytes(m image.Image) ([]byte, error) {
-	// Create Writer from file
-	var b bytes.Buffer
-	// Write the image into the buffer
-	err := png.Encode(&b, m)
-	if err != nil {
-		return nil, err
-	}
+func TestBoundingBox(t *testing.T) {
+	p := pather{pdf: gofpdf.New("", "", "", "")}
+	p.pdf.AddPage()
 
-	return b.Bytes(), nil
-}
+	p.Start(randPoint(40, 40))
+	p.Line(randPoint(40, 40))
+	p.QuadBezier(randPoint(35, 35), randPoint(45, 45))
+	p.QuadBezier(randPoint(35, 35), randPoint(45, 45))
+	p.CubeBezier(randPoint(35, 35), randPoint(45, 45), randPoint(30, 30))
+	p.Stop(true)
+	p.pdf.DrawPath("D")
 
-func saveToPngFile(filePath string, m image.Image) error {
-	b, err := toPngBytes(m)
-	if err != nil {
-		return err
+	p.pdf.SetFillColor(100, 100, 100)
+	p.pdf.SetAlpha(0.3, "")
+	drawRectange(p.pdf, p.boundingBox)
+
+	p.Clear()
+	p.Start(randPoint(40, 1020))
+	p.Line(randPoint(40, 1020))
+	p.QuadBezier(randPoint(35, 1035), randPoint(45, 1045))
+	p.QuadBezier(randPoint(35, 1035), randPoint(45, 1045))
+	p.CubeBezier(randPoint(35, 1035), randPoint(45, 1045), randPoint(30, 1030))
+	p.Stop(true)
+	p.pdf.SetAlpha(1, "")
+	p.pdf.DrawPath("D")
+
+	p.pdf.SetAlpha(0.3, "")
+	drawRectange(p.pdf, p.boundingBox)
+
+	if err := p.pdf.OutputFileAndClose("testdata_out/path_bbox.pdf"); err != nil {
+		t.Error(err)
 	}
-	err = ioutil.WriteFile(filePath, b, os.ModePerm)
-	return err
 }
 
 func renderIcon(t *testing.T, filename string) {
@@ -39,30 +50,11 @@ func renderIcon(t *testing.T, filename string) {
 	if err != nil {
 		t.Fatalf("can't open svg source: %s", err)
 	}
-	img, err := RasterSVGIconToImage(f)
-	if err != nil {
-		t.Fatalf("can't raster image: %s", err)
-	}
 
 	name := strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))
-	err = saveToPngFile(fmt.Sprintf("testdata_out/%s.png", name), img)
+	err = RenderSVGIconToPDF(f, fmt.Sprintf("testdata_out/%s.pdf", name))
 	if err != nil {
-		t.Fatalf("can't saved rasterized image: %s", err)
-	}
-
-	got, err := toPngBytes(img)
-	if err != nil {
-		t.Fatalf("can't retrieve binary from image: %s", err)
-	}
-
-	// comparison with oksvg, requires to run its test first
-	ref, err := ioutil.ReadFile(fmt.Sprintf("../../../srwiley/oksvg/testdata/%s.svg.png", name))
-	if err != nil {
-		t.Fatalf("can't load reference image: %s", err)
-	}
-
-	if !bytes.Equal(got, ref) {
-		t.Errorf("image %s is different from expectation", filename)
+		t.Fatalf("can't raster image: %s", err)
 	}
 }
 

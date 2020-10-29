@@ -4,7 +4,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/jung-kurt/gofpdf"
+	"github.com/benoitkugler/gofpdf"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -59,7 +59,7 @@ func TestBoudindBox(t *testing.T) {
 		}
 	}
 
-	if err := p.pdf.OutputFileAndClose("test.pdf"); err != nil {
+	if err := p.pdf.OutputFileAndClose("testdata_out/bezier_bbox.pdf"); err != nil {
 		t.Error(err)
 	}
 }
@@ -97,7 +97,7 @@ func TestAggregateBoxes(t *testing.T) {
 		}
 	}
 
-	if err := pdf.OutputFileAndClose("test_aggregate.pdf"); err != nil {
+	if err := pdf.OutputFileAndClose("testdata_out/aggregate_bbox.pdf"); err != nil {
 		t.Error(err)
 	}
 }

@@ -45,10 +45,9 @@ func (rd Driver) SetupDrawers(willFill, willStroke bool) (f svgicon.Filler, s sv
 	return f, s
 }
 
-// RasterSVGIconToImage uses a scanner instance to renderer the
+// RasterSVGIconToImage uses a default scanner rasterx.ScannerGV instance to renderer the
 // icon into an image and return it.
-// If `scanner` is nil, a default scanner rasterx.ScannerGV is used.
-func RasterSVGIconToImage(icon io.Reader, scanner rasterx.Scanner) (*image.RGBA, error) {
+func RasterSVGIconToImage(icon io.Reader) (*image.RGBA, error) {
 	parsedIcon, err := svgicon.ReadIconStream(icon, svgicon.WarnErrorMode)
 	if err != nil {
 		return nil, err
@@ -56,9 +55,7 @@ func RasterSVGIconToImage(icon io.Reader, scanner rasterx.Scanner) (*image.RGBA,
 	w, h := int(parsedIcon.ViewBox.W), int(parsedIcon.ViewBox.H)
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
 
-	if scanner == nil {
-		scanner = rasterx.NewScannerGV(w, h, img, img.Bounds())
-	}
+	scanner := rasterx.NewScannerGV(w, h, img, img.Bounds())
 	renderer := NewDriver(w, h, scanner)
 	parsedIcon.Draw(renderer, 1.0)
 	return img, nil
