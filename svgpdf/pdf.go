@@ -3,7 +3,7 @@
 package svgpdf
 
 import (
-	"github.com/benoitkugler/oksvg/svgicon"
+	"github.com/inkeliz/oksvg/svgicon"
 	"github.com/jung-kurt/gofpdf"
 	"golang.org/x/image/math/fixed"
 )

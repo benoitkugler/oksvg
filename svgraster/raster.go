@@ -6,7 +6,7 @@ import (
 	"image"
 	"io"
 
-	"github.com/benoitkugler/oksvg/svgicon"
+	"github.com/inkeliz/oksvg/svgicon"
 	"github.com/srwiley/rasterx"
 )
 
