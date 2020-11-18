@@ -49,11 +49,25 @@ func (rd Driver) SetupDrawers(willFill, willStroke bool) (f svgicon.Filler, s sv
 // icon into an image and return it.
 // If `scanner` is nil, a default scanner rasterx.ScannerGV is used.
 func RasterSVGIconToImage(icon io.Reader, scanner rasterx.Scanner) (*image.RGBA, error) {
+	return rasterSVG(icon, scanner, 0, 0)
+}
+
+// RasterSVGIconToImageSize uses a sacanner instance to render the icon
+// with a custom size, instead of the original size of the SVG file.
+// If `scanner` is nil, a default scanner rasterx.ScannerGV is used.
+func RasterSVGIconToImageSize(icon io.Reader, scanner rasterx.Scanner, width, height int) (*image.RGBA, error) {
+	return rasterSVG(icon, scanner, width, height)
+}
+
+func rasterSVG(icon io.Reader, scanner rasterx.Scanner, w, h int) (*image.RGBA, error) {
 	parsedIcon, err := svgicon.ReadIconStream(icon, svgicon.WarnErrorMode)
 	if err != nil {
 		return nil, err
 	}
-	w, h := int(parsedIcon.ViewBox.W), int(parsedIcon.ViewBox.H)
+
+	if w == 0 || h == 0 {
+		w, h = int(parsedIcon.ViewBox.W), int(parsedIcon.ViewBox.H)
+	}
 
 	parsedIcon.SetTarget(0, 0, float64(w), float64(h))
 
@@ -64,6 +78,7 @@ func RasterSVGIconToImage(icon io.Reader, scanner rasterx.Scanner) (*image.RGBA,
 	}
 	renderer := NewDriver(w, h, scanner)
 	parsedIcon.Draw(renderer, 1.0)
+
 	return img, nil
 }
 
