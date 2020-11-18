@@ -195,7 +195,7 @@ var DefaultStyle = PathStyle{
 func (s *SvgIcon) SetTarget(x, y, w, h float64) {
 	scaleW := w / s.ViewBox.W
 	scaleH := h / s.ViewBox.H
-	s.Transform = Identity.Translate(x-s.ViewBox.X, y-s.ViewBox.Y).Scale(scaleW, scaleH)
+	s.Transform = Identity.Translate(x-(s.ViewBox.X * scaleW), y-(s.ViewBox.Y * scaleH)).Scale(scaleW, scaleH)
 }
 
 // Draw the compiled SVG icon into the driver `d`.
