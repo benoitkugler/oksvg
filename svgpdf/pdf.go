@@ -1,5 +1,6 @@
 // Implements a PDF backend to render SVG images,
 // by wrapping github.com/jung-kurt/gofpdf.
+// TODO: Some features are missing: MiterLimit and Gradient.
 package svgpdf
 
 import (
@@ -177,7 +178,8 @@ func (f *patherStroker) SetStrokeOptions(options svgicon.StrokeOptions) {
 		lineJoinStyle = "round"
 	}
 	f.pdf.SetLineJoinStyle(lineJoinStyle)
-	f.pdf.SetMiterLimit(float64(options.Join.MiterLimit) / 64)
+	// TODO: add suport for miter limit
+	// f.pdf.SetMiterLimit(float64(options.Join.MiterLimit) / 64)
 }
 
 // TODO: support gradient
