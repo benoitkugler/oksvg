@@ -57,7 +57,7 @@ type Driver interface {
 	// to avoid useless operations.
 	// When both booleans are true, one can assume that the exact same draw operations
 	// will be performed on the Filler first and then on the Stroker.
-	// This promise may enable the implementation to avoid duplicating filled and stroked paths
+	// This promise may enable the implementation to avoid duplicating filled and stroked paths.
 	SetupDrawers(willFill, willStroke bool) (Filler, Stroker)
 }
 
