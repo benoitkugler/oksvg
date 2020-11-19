@@ -1,4 +1,4 @@
-# SVG parser and renderer, written in Go
+# SVG parser and renderer, written in Go (experimental)
 
 This package is a fork of [github.com/srwiley/oksvg](https://github.com/srwiley/oksvg): most of the code is copied from it and the core logic is the same.
 
