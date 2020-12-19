@@ -1,68 +1,24 @@
-package svgraster
+package alt
 
 import (
-	"bytes"
 	"fmt"
-	"image"
-	"image/png"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
-func toPngBytes(m image.Image) ([]byte, error) {
-	// Create Writer from file
-	var b bytes.Buffer
-	// Write the image into the buffer
-	err := png.Encode(&b, m)
-	if err != nil {
-		return nil, err
-	}
-
-	return b.Bytes(), nil
-}
-
-func saveToPngFile(filePath string, m image.Image) error {
-	b, err := toPngBytes(m)
-	if err != nil {
-		return err
-	}
-	err = ioutil.WriteFile(filePath, b, os.ModePerm)
-	return err
-}
-
 func renderIcon(t *testing.T, filename string) {
-	filename = filepath.Join("..", "svgicon", filename)
+	filename = filepath.Join("..", "..", "svgicon", filename)
 	f, err := os.Open(filename)
 	if err != nil {
 		t.Fatalf("can't open svg source: %s", err)
 	}
-	img, err := RasterSVGIconToImage(f)
-	if err != nil {
-		t.Fatalf("can't raster image: %s", err)
-	}
 
 	name := strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))
-	err = saveToPngFile(fmt.Sprintf("testdata_out/%s.png", name), img)
+	err = RenderSVGIconToPDF(f, fmt.Sprintf("testdata_out/%s.pdf", name))
 	if err != nil {
-		t.Fatalf("can't saved rasterized image: %s", err)
-	}
-
-	got, err := toPngBytes(img)
-	if err != nil {
-		t.Fatalf("can't retrieve binary from image: %s", err)
-	}
-
-	// comparison with oksvg, requires to run its test first
-	ref, err := ioutil.ReadFile(fmt.Sprintf("../../../srwiley/oksvg/testdata/%s.svg.png", name))
-	if err != nil {
-		t.Fatalf("can't load reference image: %s", err)
-	}
-
-	if !bytes.Equal(got, ref) {
-		t.Errorf("image %s is different from expectation", filename)
+		t.Fatalf("can't raster image: %s", err)
 	}
 }
 
@@ -116,35 +72,5 @@ func TestStrokeIcons(t *testing.T) {
 		"TestShapes6.svg",
 	} {
 		renderIcon(t, "testdata/"+p)
-	}
-}
-
-func TestLinearGradientUserSpace(t *testing.T) {
-	f, err := os.Open("testdata_out/gradient_linear_us.svg")
-	if err != nil {
-		t.Fatal(err)
-	}
-	img, err := RasterSVGIconToImage(f)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = saveToPngFile("testdata_out/gradient_linear_us.png", img)
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestRadialGradientUserSpace(t *testing.T) {
-	f, err := os.Open("testdata_out/gradient_radial_us.svg")
-	if err != nil {
-		t.Fatal(err)
-	}
-	img, err := RasterSVGIconToImage(f)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = saveToPngFile("testdata_out/gradient_radial_us.png", img)
-	if err != nil {
-		t.Fatal(err)
 	}
 }

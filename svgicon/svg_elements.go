@@ -214,8 +214,11 @@ func defsF(c *iconCursor, attrs []xml.Attr) error {
 func linearGradientF(c *iconCursor, attrs []xml.Attr) error {
 	var err error
 	c.inGrad = true
-	direction := Linear{0, 0, 1, 0}
-	c.grad = &Gradient{Direction: direction, Bounds: c.icon.ViewBox, Matrix: Identity}
+	// interpretation of percentage in direction depends
+	// on gradientUnits: we first store the string values
+	// and resolve them in a second pass
+	directionStrings := [4]string{"0%", "0%", "100%", "0"} // default value
+	c.grad = &Gradient{Bounds: c.icon.ViewBox, Matrix: Identity}
 	for _, attr := range attrs {
 		switch attr.Name.Local {
 		case "id":
@@ -226,13 +229,13 @@ func linearGradientF(c *iconCursor, attrs []xml.Attr) error {
 				return errZeroLengthID
 			}
 		case "x1":
-			direction[0], err = readFraction(attr.Value)
+			directionStrings[0] = attr.Value
 		case "y1":
-			direction[1], err = readFraction(attr.Value)
+			directionStrings[1] = attr.Value
 		case "x2":
-			direction[2], err = readFraction(attr.Value)
+			directionStrings[2] = attr.Value
 		case "y2":
-			direction[3], err = readFraction(attr.Value)
+			directionStrings[3] = attr.Value
 		default:
 			err = c.readGradAttr(attr)
 		}
@@ -240,16 +243,38 @@ func linearGradientF(c *iconCursor, attrs []xml.Attr) error {
 			return err
 		}
 	}
+	// now we can resolve percentages
+	bbox := Bounds{W: 1, H: 1} // default is ObjectBoundingBox
+	if c.grad.Units == UserSpaceOnUse {
+		bbox = c.grad.Bounds
+	}
+	var direction Linear
+	direction[0], err = bbox.resolveUnit(directionStrings[0], widthPercentage)
+	if err != nil {
+		return err
+	}
+	direction[1], err = bbox.resolveUnit(directionStrings[1], heightPercentage)
+	if err != nil {
+		return err
+	}
+	direction[2], err = bbox.resolveUnit(directionStrings[2], widthPercentage)
+	if err != nil {
+		return err
+	}
+	direction[3], err = bbox.resolveUnit(directionStrings[3], heightPercentage)
+	if err != nil {
+		return err
+	}
 	c.grad.Direction = direction
 	return nil
 }
 
 func radialGradientF(c *iconCursor, attrs []xml.Attr) error {
 	c.inGrad = true
-	direction := Radial{0.5, 0.5, 0.5, 0.5, 0.5, 0.5}
-	c.grad = &Gradient{Direction: direction, Bounds: c.icon.ViewBox, Matrix: Identity}
+	c.grad = &Gradient{Bounds: c.icon.ViewBox, Matrix: Identity}
 	var setFx, setFy bool
 	var err error
+	directionStrings := [6]string{"50%", "50%", "50%", "50%", "50%", "50%"} // default values
 	for _, attr := range attrs {
 		switch attr.Name.Local {
 		case "id":
@@ -260,19 +285,19 @@ func radialGradientF(c *iconCursor, attrs []xml.Attr) error {
 				return errZeroLengthID
 			}
 		case "cx":
-			direction[0], err = readFraction(attr.Value)
+			directionStrings[0] = attr.Value
 		case "cy":
-			direction[1], err = readFraction(attr.Value)
+			directionStrings[1] = attr.Value
 		case "fx":
 			setFx = true
-			direction[2], err = readFraction(attr.Value)
+			directionStrings[2] = attr.Value
 		case "fy":
 			setFy = true
-			direction[3], err = readFraction(attr.Value)
+			directionStrings[3] = attr.Value
 		case "r":
-			direction[4], err = readFraction(attr.Value)
+			directionStrings[4] = attr.Value
 		case "fr":
-			direction[5], err = readFraction(attr.Value)
+			directionStrings[5] = attr.Value
 		default:
 			err = c.readGradAttr(attr)
 		}
@@ -281,11 +306,43 @@ func radialGradientF(c *iconCursor, attrs []xml.Attr) error {
 		}
 	}
 	if !setFx { // set fx to cx by default
-		direction[2] = direction[0]
+		directionStrings[2] = directionStrings[0]
 	}
 	if !setFy { // set fy to cy by default
-		direction[3] = direction[1]
+		directionStrings[3] = directionStrings[1]
 	}
+
+	// now we can resolve percentages
+	bbox := Bounds{W: 1, H: 1} // default is ObjectBoundingBox
+	if c.grad.Units == UserSpaceOnUse {
+		bbox = c.grad.Bounds
+	}
+	var direction Radial
+	direction[0], err = bbox.resolveUnit(directionStrings[0], widthPercentage)
+	if err != nil {
+		return err
+	}
+	direction[1], err = bbox.resolveUnit(directionStrings[1], heightPercentage)
+	if err != nil {
+		return err
+	}
+	direction[2], err = bbox.resolveUnit(directionStrings[2], widthPercentage)
+	if err != nil {
+		return err
+	}
+	direction[3], err = bbox.resolveUnit(directionStrings[3], heightPercentage)
+	if err != nil {
+		return err
+	}
+	direction[4], err = bbox.resolveUnit(directionStrings[4], diagPercentage)
+	if err != nil {
+		return err
+	}
+	direction[5], err = bbox.resolveUnit(directionStrings[5], diagPercentage)
+	if err != nil {
+		return err
+	}
+
 	c.grad.Direction = direction
 	return nil
 }

@@ -24,7 +24,7 @@ func TestBoundingBox(t *testing.T) {
 
 	p.pdf.SetFillColor(100, 100, 100)
 	p.pdf.SetAlpha(0.3, "")
-	drawRectange(p.pdf, p.boundingBox)
+	drawRectange(p.pdf, p.boundingBox.BBox)
 
 	p.Clear()
 	p.Start(randPoint(40, 1020))
@@ -37,7 +37,7 @@ func TestBoundingBox(t *testing.T) {
 	p.pdf.DrawPath("D")
 
 	p.pdf.SetAlpha(0.3, "")
-	drawRectange(p.pdf, p.boundingBox)
+	drawRectange(p.pdf, p.boundingBox.BBox)
 
 	if err := p.pdf.OutputFileAndClose("testdata_out/path_bbox.pdf"); err != nil {
 		t.Error(err)

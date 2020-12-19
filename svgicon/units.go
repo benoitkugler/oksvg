@@ -54,15 +54,16 @@ const (
 	diagPercentage
 )
 
-// parseUnit converts a length with a unit into its value in 'px'
-// percentage are supported, and refer to the current ViewBox
-func (c *iconCursor) parseUnit(s string, asPerc percentageReference) (float64, error) {
+// resolveUnit converts a length with a unit into its value in 'px'
+// percentage are supported, and refer to the viewBox
+// `asPerc` is only applied when `s` contains a percentage.
+func (viewBox Bounds) resolveUnit(s string, asPerc percentageReference) (float64, error) {
 	value, isPercentage, err := parseUnit(s)
 	if err != nil {
 		return 0, err
 	}
 	if isPercentage {
-		w, h := c.icon.ViewBox.W, c.icon.ViewBox.H
+		w, h := viewBox.W, viewBox.H
 		switch asPerc {
 		case widthPercentage:
 			return value / 100 * w, nil
@@ -74,6 +75,12 @@ func (c *iconCursor) parseUnit(s string, asPerc percentageReference) (float64, e
 		}
 	}
 	return value, nil
+}
+
+// parseUnit converts a length with a unit into its value in 'px'
+// percentage are supported, and refer to the current ViewBox
+func (c *iconCursor) parseUnit(s string, asPerc percentageReference) (float64, error) {
+	return c.icon.ViewBox.resolveUnit(s, asPerc)
 }
 
 func parseBasicFloat(s string) (float64, error) {

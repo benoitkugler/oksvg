@@ -95,13 +95,7 @@ func setColorFromPattern(color svgicon.Pattern, opacity float64, scanner rasterx
 	case svgicon.PlainColor:
 		scanner.SetColor(rasterx.ApplyOpacity(color, opacity))
 	case svgicon.Gradient:
-		if color.Units == svgicon.ObjectBoundingBox {
-			fRect := scanner.GetPathExtent()
-			mnx, mny := float64(fRect.Min.X)/64, float64(fRect.Min.Y)/64
-			mxx, mxy := float64(fRect.Max.X)/64, float64(fRect.Max.Y)/64
-			color.Bounds.X, color.Bounds.Y = mnx, mny
-			color.Bounds.W, color.Bounds.H = mxx-mnx, mxy-mny
-		}
+		_ = color.ApplyPathExtent(scanner.GetPathExtent())
 		rasterxGradient := toRasterxGradient(color)
 		scanner.SetColor(rasterxGradient.GetColorFunction(opacity))
 	}

@@ -14,21 +14,47 @@ import (
 // assert interface conformance
 var (
 	_ svgicon.Driver  = Renderer{}
-	_ svgicon.Filler  = &filler{}
-	_ svgicon.Stroker = &stroker{}
-	_ svgicon.Stroker = &patherStroker{}
+	_ svgicon.Filler  = (*filler)(nil)
+	_ svgicon.Stroker = (*stroker)(nil)
+	_ svgicon.Stroker = (*patherStroker)(nil)
 )
 
 type Renderer struct {
 	pdf *gofpdf.Fpdf
 }
 
+// BoundingBox stores the current bounding box
+// and exposes method to update it
+type BoundingBox struct {
+	BBox fixed.Rectangle26_6
+	a    fixed.Point26_6 // current point, used to compute the next boundingBox
+}
+
+func (p *BoundingBox) Start(a fixed.Point26_6) {
+	p.a = a
+	p.BBox = fixed.Rectangle26_6{Min: a, Max: a} // degenerate case
+}
+
+func (p *BoundingBox) Line(b fixed.Point26_6) {
+	p.BBox = p.BBox.Union(computeBoundingBox(line{p.a, b}))
+	p.a = b
+}
+
+func (p *BoundingBox) QuadBezier(b fixed.Point26_6, c fixed.Point26_6) {
+	p.BBox = p.BBox.Union(computeBoundingBox(quadBezier{p.a, b, c}))
+	p.a = c
+}
+
+func (p *BoundingBox) CubeBezier(b fixed.Point26_6, c fixed.Point26_6, d fixed.Point26_6) {
+	p.BBox = p.BBox.Union(computeBoundingBox(cubicBezier{p.a, b, c, d}))
+	p.a = d
+}
+
 // implements the common path commands,
 // shared by the filler and the stroker
 type pather struct {
 	pdf         *gofpdf.Fpdf
-	a           fixed.Point26_6     // current point, used to compute boundingBox
-	boundingBox fixed.Rectangle26_6 // bouding box for the current path
+	boundingBox BoundingBox
 }
 
 // implements the filling operation
@@ -95,28 +121,24 @@ func fToFixed(x, y float64) fixed.Point26_6 {
 }
 
 func (p *pather) Clear() {
-	p.boundingBox = fixed.Rectangle26_6{}
-	p.a = fixed.Point26_6{}
+	p.boundingBox = BoundingBox{}
 }
 
 func (p *pather) Start(a fixed.Point26_6) {
 	p.pdf.MoveTo(fixedTof(a))
-	p.a = a
-	p.boundingBox = fixed.Rectangle26_6{Min: a, Max: a} // degenerate case
+	p.boundingBox.Start(a)
 }
 
 func (p *pather) Line(b fixed.Point26_6) {
 	p.pdf.LineTo(fixedTof(b))
-	p.boundingBox = p.boundingBox.Union(computeBoundingBox(line{p.a, b}))
-	p.a = b
+	p.boundingBox.Line(b)
 }
 
 func (p *pather) QuadBezier(b fixed.Point26_6, c fixed.Point26_6) {
 	cx, cy := fixedTof(b)
 	x, y := fixedTof(c)
 	p.pdf.CurveTo(cx, cy, x, y)
-	p.boundingBox = p.boundingBox.Union(computeBoundingBox(quadBezier{p.a, b, c}))
-	p.a = c
+	p.boundingBox.QuadBezier(b, c)
 }
 
 func (p *pather) CubeBezier(b fixed.Point26_6, c fixed.Point26_6, d fixed.Point26_6) {
@@ -124,8 +146,7 @@ func (p *pather) CubeBezier(b fixed.Point26_6, c fixed.Point26_6, d fixed.Point2
 	cx1, cy1 := fixedTof(c)
 	x, y := fixedTof(d)
 	p.pdf.CurveBezierCubicTo(cx0, cy0, cx1, cy1, x, y)
-	p.boundingBox = p.boundingBox.Union(computeBoundingBox(cubicBezier{p.a, b, c, d}))
-	p.a = d
+	p.boundingBox.CubeBezier(b, c, d)
 }
 
 func (p *pather) Stop(closeLoop bool) {
@@ -141,6 +162,9 @@ func (f filler) Draw(color svgicon.Pattern, opacity float64) {
 		f.pdf.SetFillColor(int(color.R), int(color.G), int(color.B))
 		opacity *= float64(color.A) / 255.
 		f.pdf.SetAlpha(opacity, "")
+	case svgicon.Gradient:
+		// mat := color.ApplyPathExtent(f.boundingBox)
+
 	}
 
 	styleStr := "f*"

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"golang.org/x/image/colornames"
+	"golang.org/x/image/math/fixed"
 )
 
 // This file defines colors and gradients used in SVG
@@ -169,10 +170,30 @@ type GradStop struct {
 type Gradient struct {
 	Direction gradientDirecter
 	Stops     []GradStop
-	Bounds    struct{ X, Y, W, H float64 }
+	Bounds    Bounds
 	Matrix    Matrix2D
 	Spread    SpreadMethod
 	Units     GradientUnits
+}
+
+// ApplyPathExtent use the given path extent to adjust the bounding box,
+// if required by `Units`.
+// The `Direction` field is not modified, but a matrix accounting for both the bouding box and
+// the gradient matrix is returned
+func (g *Gradient) ApplyPathExtent(extent fixed.Rectangle26_6) Matrix2D {
+	if g.Units == ObjectBoundingBox {
+		mnx, mny := float64(extent.Min.X)/64, float64(extent.Min.Y)/64
+		mxx, mxy := float64(extent.Max.X)/64, float64(extent.Max.Y)/64
+		g.Bounds.X, g.Bounds.Y = mnx, mny
+		g.Bounds.W, g.Bounds.H = mxx-mnx, mxy-mny
+
+		// units in Direction are fraction, so
+		// we apply bounds
+		return Identity.Scale(g.Bounds.W, g.Bounds.H).Mult(g.Matrix)
+	}
+	// units in Direction are already scaled to the view box
+	// just return the gradient matrix
+	return g.Matrix
 }
 
 // radial or linear

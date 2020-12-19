@@ -31,10 +31,14 @@ type SvgPath struct {
 	Style PathStyle
 }
 
+// Bounds defines a bounding box, such as a viewport
+// or a path extent.
+type Bounds struct{ X, Y, W, H float64 }
+
 // SvgIcon holds data from parsed SVGs.
 // See the `Draw` methods to use it.
 type SvgIcon struct {
-	ViewBox      struct{ X, Y, W, H float64 }
+	ViewBox      Bounds
 	Titles       []string // Title elements collect here
 	Descriptions []string // Description elements collect here
 	SVGPaths     []SvgPath
