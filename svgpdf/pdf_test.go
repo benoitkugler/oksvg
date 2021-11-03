@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/benoitkugler/gofpdf"
+	"github.com/jung-kurt/gofpdf"
 )
 
 func TestBoundingBox(t *testing.T) {
@@ -61,7 +61,8 @@ func renderIcon(t *testing.T, filename string) {
 func TestLandscapeIcons(t *testing.T) {
 	for _, p := range [...]string{
 		"beach", "cape", "iceberg", "island",
-		"mountains", "sea", "trees", "village"} {
+		"mountains", "sea", "trees", "village",
+	} {
 		renderIcon(t, "testdata/landscapeIcons/"+p+".svg")
 	}
 }
@@ -82,7 +83,8 @@ func TestSportsIcons(t *testing.T) {
 		"cycling_road", "olympic_torch", "volleyball",
 		"cycling_track", "water_polo",
 		"diving", "rhythmic_gymnastics", "weightlifting",
-		"equestrian", "rowing", "wrestling"} {
+		"equestrian", "rowing", "wrestling",
+	} {
 		renderIcon(t, "testdata/sportsIcons/"+p+".svg")
 	}
 }
@@ -90,7 +92,8 @@ func TestSportsIcons(t *testing.T) {
 func TestTestIcons(t *testing.T) {
 	for _, p := range [...]string{
 		"astronaut", "jupiter", "lander", "school-bus", "telescope", "content-cut-light", "defs",
-		"24px"} {
+		"24px",
+	} {
 		renderIcon(t, "testdata/testIcons/"+p+".svg")
 	}
 }

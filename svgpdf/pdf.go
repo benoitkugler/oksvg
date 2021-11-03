@@ -6,8 +6,8 @@ package svgpdf
 import (
 	"io"
 
-	"github.com/benoitkugler/gofpdf"
 	"github.com/benoitkugler/oksvg/svgicon"
+	"github.com/jung-kurt/gofpdf"
 	"golang.org/x/image/math/fixed"
 )
 

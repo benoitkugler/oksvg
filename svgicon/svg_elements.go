@@ -23,7 +23,7 @@ var drawFuncs = map[string]svgFunc{
 	"stop":           stopF,
 	"rect":           rectF,
 	"circle":         circleF,
-	"ellipse":        circleF, //circleF handles ellipse also
+	"ellipse":        circleF, // circleF handles ellipse also
 	"polyline":       polylineF,
 	"polygon":        polygonF,
 	"path":           pathF,
@@ -53,8 +53,10 @@ func svgF(c *iconCursor, attrs []xml.Attr) error {
 			c.icon.ViewBox.W = c.points[2]
 			c.icon.ViewBox.H = c.points[3]
 		case "width":
+			c.icon.Width = attr.Value
 			width, err = parseBasicFloat(attr.Value)
 		case "height":
+			c.icon.Height = attr.Value
 			height, err = parseBasicFloat(attr.Value)
 		}
 		if err != nil {
@@ -98,6 +100,7 @@ func rectF(c *iconCursor, attrs []xml.Attr) error {
 	c.path.addRoundRect(x+c.curX, y+c.curY, w+x+c.curX, h+y+c.curY, rx, ry, 0)
 	return nil
 }
+
 func circleF(c *iconCursor, attrs []xml.Attr) error {
 	var cx, cy, rx, ry float64
 	var err error
@@ -125,6 +128,7 @@ func circleF(c *iconCursor, attrs []xml.Attr) error {
 	c.ellipseAt(cx+c.curX, cy+c.curY, rx, ry)
 	return nil
 }
+
 func lineF(c *iconCursor, attrs []xml.Attr) error {
 	var x1, x2, y1, y2 float64
 	var err error
@@ -145,12 +149,15 @@ func lineF(c *iconCursor, attrs []xml.Attr) error {
 	}
 	c.path.Start(fixed.Point26_6{
 		X: fixed.Int26_6((x1 + c.curX) * 64),
-		Y: fixed.Int26_6((y1 + c.curY) * 64)})
+		Y: fixed.Int26_6((y1 + c.curY) * 64),
+	})
 	c.path.Line(fixed.Point26_6{
 		X: fixed.Int26_6((x2 + c.curX) * 64),
-		Y: fixed.Int26_6((y2 + c.curY) * 64)})
+		Y: fixed.Int26_6((y2 + c.curY) * 64),
+	})
 	return nil
 }
+
 func polylineF(c *iconCursor, attrs []xml.Attr) error {
 	var err error
 	for _, attr := range attrs {
@@ -168,15 +175,18 @@ func polylineF(c *iconCursor, attrs []xml.Attr) error {
 	if len(c.points) > 4 {
 		c.path.Start(fixed.Point26_6{
 			X: fixed.Int26_6((c.points[0] + c.curX) * 64),
-			Y: fixed.Int26_6((c.points[1] + c.curY) * 64)})
+			Y: fixed.Int26_6((c.points[1] + c.curY) * 64),
+		})
 		for i := 2; i < len(c.points)-1; i += 2 {
 			c.path.Line(fixed.Point26_6{
 				X: fixed.Int26_6((c.points[i] + c.curX) * 64),
-				Y: fixed.Int26_6((c.points[i+1] + c.curY) * 64)})
+				Y: fixed.Int26_6((c.points[i+1] + c.curY) * 64),
+			})
 		}
 	}
 	return nil
 }
+
 func polygonF(c *iconCursor, attrs []xml.Attr) error {
 	err := polylineF(c, attrs)
 	if len(c.points) > 4 {
@@ -184,6 +194,7 @@ func polygonF(c *iconCursor, attrs []xml.Attr) error {
 	}
 	return err
 }
+
 func pathF(c *iconCursor, attrs []xml.Attr) error {
 	var err error
 	for _, attr := range attrs {
@@ -197,20 +208,24 @@ func pathF(c *iconCursor, attrs []xml.Attr) error {
 	}
 	return nil
 }
+
 func descF(c *iconCursor, attrs []xml.Attr) error {
 	c.inDescText = true
 	c.icon.Descriptions = append(c.icon.Descriptions, "")
 	return nil
 }
+
 func titleF(c *iconCursor, attrs []xml.Attr) error {
 	c.inTitleText = true
 	c.icon.Titles = append(c.icon.Titles, "")
 	return nil
 }
+
 func defsF(c *iconCursor, attrs []xml.Attr) error {
 	c.inDefs = true
 	return nil
 }
+
 func linearGradientF(c *iconCursor, attrs []xml.Attr) error {
 	var err error
 	c.inGrad = true
@@ -346,6 +361,7 @@ func radialGradientF(c *iconCursor, attrs []xml.Attr) error {
 	c.grad.Direction = direction
 	return nil
 }
+
 func stopF(c *iconCursor, attrs []xml.Attr) error {
 	var err error
 	if c.inGrad {
@@ -355,7 +371,7 @@ func stopF(c *iconCursor, attrs []xml.Attr) error {
 			case "offset":
 				stop.Offset, err = readFraction(attr.Value)
 			case "stop-color":
-				//todo: add current color inherit
+				// todo: add current color inherit
 				var optColor optionnalColor
 				optColor, err = parseSVGColor(attr.Value)
 				stop.StopColor = optColor.asColor()
@@ -370,6 +386,7 @@ func stopF(c *iconCursor, attrs []xml.Attr) error {
 	}
 	return nil
 }
+
 func useF(c *iconCursor, attrs []xml.Attr) error {
 	var (
 		href string

@@ -6,6 +6,7 @@ package svgicon
 
 import (
 	"encoding/xml"
+	"errors"
 	"io"
 	"os"
 
@@ -44,6 +45,8 @@ type SvgIcon struct {
 	SVGPaths     []SvgPath
 	Transform    Matrix2D
 
+	Width, Height string // top level width and height attributes
+
 	grads map[string]*Gradient
 	defs  map[string][]definition
 }
@@ -58,10 +61,14 @@ func ReadIconStream(stream io.Reader, errMode ErrorMode) (*SvgIcon, error) {
 	cursor.errorMode = errMode
 	decoder := xml.NewDecoder(stream)
 	decoder.CharsetReader = charset.NewReaderLabel
+	seenTag := false
 	for {
 		t, err := decoder.Token()
 		if err != nil {
 			if err == io.EOF {
+				if !seenTag {
+					return nil, errors.New("invalid svg xml icon")
+				}
 				break
 			}
 			return icon, err
@@ -69,6 +76,7 @@ func ReadIconStream(stream io.Reader, errMode ErrorMode) (*SvgIcon, error) {
 		// Inspect the type of the XML token
 		switch se := t.(type) {
 		case xml.StartElement:
+			seenTag = true
 			// Reads all recognized style attributes from the start element
 			// and places it on top of the styleStack
 			err = cursor.pushStyle(se.Attr)

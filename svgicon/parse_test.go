@@ -1,6 +1,7 @@
 package svgicon
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -14,7 +15,8 @@ func parseIcon(t *testing.T, iconPath string) {
 func TestLandscapeIcons(t *testing.T) {
 	for _, p := range []string{
 		"beach", "cape", "iceberg", "island",
-		"mountains", "sea", "trees", "village"} {
+		"mountains", "sea", "trees", "village",
+	} {
 		parseIcon(t, "testdata/landscapeIcons/"+p+".svg")
 	}
 }
@@ -22,7 +24,8 @@ func TestLandscapeIcons(t *testing.T) {
 func TestTestIcons(t *testing.T) {
 	for _, p := range []string{
 		"astronaut", "jupiter", "lander", "school-bus", "telescope", "content-cut-light", "defs",
-		"24px"} {
+		"24px",
+	} {
 		parseIcon(t, "testdata/testIcons/"+p+".svg")
 	}
 }
@@ -45,4 +48,11 @@ func TestStrokeIcons(t *testing.T) {
 
 func TestPercentages(t *testing.T) {
 	parseIcon(t, "testdata/TestPercentages.svg")
+}
+
+func TestInvalidXML(t *testing.T) {
+	_, err := ReadIconStream(strings.NewReader("dummy"), StrictErrorMode)
+	if err == nil {
+		t.Fatal("expected error on invalid input")
+	}
 }

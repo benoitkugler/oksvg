@@ -5,7 +5,7 @@ This package is a fork of [github.com/srwiley/oksvg](https://github.com/srwiley/
 However, it adds the possiblity of using differents rendering target, by splitting
 the parsing and processing of the SVG file from its actual drawing.
 
-Of course, you can still raster an icon into a PNG image (using `svgraster.RasterSVGIconToImage`, built on [github.com/srwiley/rasterx](https://github.com/srwiley/rasterx)), and can also use a PDF backend (using `svgpdf.RenderSVGIconToPDF`, built on [github.com/phpdave11/gofpdf](https://github.com/phpdave11/gofpdf)). Be aware that the PDF backend is still experimental and is missing features like miter limit control and gradient support.
+Of course, you can still raster an icon into a PNG image (using `svgraster.RasterSVGIconToImage`, built on [github.com/srwiley/rasterx](https://github.com/srwiley/rasterx)), but you can also use a PDF backend (using `svgpdf.RenderSVGIconToPDF`, built on [github.com/phpdave11/gofpdf](https://github.com/phpdave11/gofpdf)). Be aware that the PDF backend is still experimental and is missing features like miter limit control and gradient support.
 
 Other backends should be easy to add, by implementing the `oksvg.Driver` interface.
 
