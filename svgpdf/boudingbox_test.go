@@ -1,10 +1,11 @@
 package svgpdf
 
 import (
+	"image/color"
 	"math/rand"
 	"testing"
 
-	"github.com/jung-kurt/gofpdf"
+	"github.com/benoitkugler/pdf/contentstream"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -36,22 +37,23 @@ func generateDrawCurve(p pather, order int, offsetx, offsety int) bezier {
 }
 
 func drawOneBox(p pather, order int, offsetx, offsety int) {
-	p.pdf.SetAlpha(1, "")
+	p.pdf.SetStrokeAlpha(1)
 
 	curve := generateDrawCurve(p, order, offsetx, offsety)
 	p.Stop(true)
-	p.pdf.DrawPath("D")
+	p.pdf.Ops(contentstream.OpCloseStroke{})
 
 	rect := computeBoundingBox(curve)
-	p.pdf.SetAlpha(0.2, "")
+	p.pdf.SetFillAlpha(0.2)
 	drawRectange(p.pdf, rect)
 }
 
 func TestBoudindBox(t *testing.T) {
-	p := pather{pdf: gofpdf.New("", "", "", "")}
-	p.pdf.AddPage()
-	p.pdf.SetFillColor(50, 50, 50)
-	p.pdf.SetDrawColor(50, 0, 50)
+	ap := contentstream.NewAppearance(500, 500)
+	p := pather{pdf: &ap}
+	p.pdf.SetColorFill(color.RGBA{50, 50, 50, 255})
+	p.pdf.SetColorStroke(color.RGBA{50, 0, 50, 255})
+	p.pdf.Ops(contentstream.OpSetLineWidth{W: 0.1})
 
 	for i := range [10]int{} {
 		for j := range [10]int{} {
@@ -59,20 +61,22 @@ func TestBoudindBox(t *testing.T) {
 		}
 	}
 
-	if err := p.pdf.OutputFileAndClose("testdata_out/bezier_bbox.pdf"); err != nil {
+	if err := saveApperanceToFile(&ap, "testdata_out/bezier_bbox.pdf"); err != nil {
 		t.Error(err)
 	}
 }
 
-func drawRectange(p *gofpdf.Fpdf, rect fixed.Rectangle26_6) {
+func drawRectange(p *contentstream.Appearance, rect fixed.Rectangle26_6) {
 	xmin, ymin := fixedTof(rect.Min)
 	xmax, ymax := fixedTof(rect.Max)
-	p.Rect(xmin, ymin, xmax-xmin, ymax-ymin, "FD") // accounting for gofpdf orientation
+	p.Ops(
+		contentstream.OpRectangle{X: xmin, Y: ymin, W: xmax - xmin, H: ymax - ymin},
+		contentstream.OpFill{},
+	)
 }
 
 func TestAggregateBoxes(t *testing.T) {
-	pdf := gofpdf.New("", "", "", "")
-	pdf.AddPage()
+	pdf := contentstream.NewAppearance(100, 100)
 	for i := range [6]int{} {
 		for j := range [9]int{} {
 			min1 := randPoint(i<<11+100, j<<11+100)
@@ -87,17 +91,17 @@ func TestAggregateBoxes(t *testing.T) {
 
 			res := rect1.Union(rect2)
 
-			pdf.SetAlpha(0.4, "")
-			pdf.SetFillColor(10, 10, 10)
-			drawRectange(pdf, rect1)
-			drawRectange(pdf, rect2)
-			pdf.SetFillColor(10, 100, 10)
-			pdf.SetAlpha(0.2, "")
-			drawRectange(pdf, res)
+			pdf.SetColorFill(color.RGBA{10, 10, 10, 255})
+			pdf.SetFillAlpha(0.4)
+			drawRectange(&pdf, rect1)
+			drawRectange(&pdf, rect2)
+			pdf.SetColorFill(color.RGBA{10, 100, 10, 255})
+			pdf.SetFillAlpha(0.2)
+			drawRectange(&pdf, res)
 		}
 	}
 
-	if err := pdf.OutputFileAndClose("testdata_out/aggregate_bbox.pdf"); err != nil {
+	if err := saveApperanceToFile(&pdf, "testdata_out/aggregate_bbox.pdf"); err != nil {
 		t.Error(err)
 	}
 }

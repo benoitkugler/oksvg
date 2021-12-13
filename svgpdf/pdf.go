@@ -1,5 +1,5 @@
-// Implements a PDF backend to render SVG images,
-// by wrapping github.com/jung-kurt/gofpdf.
+// Package svgpdf implements a PDF backend to render SVG images,
+// by wrapping github.com/benoitkugler/pdf
 // TODO: Some features are missing: MiterLimit and Gradient.
 package svgpdf
 
@@ -7,7 +7,8 @@ import (
 	"io"
 
 	"github.com/benoitkugler/oksvg/svgicon"
-	"github.com/jung-kurt/gofpdf"
+	"github.com/benoitkugler/pdf/contentstream"
+	"github.com/benoitkugler/pdf/model"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -20,40 +21,15 @@ var (
 )
 
 type Renderer struct {
-	pdf *gofpdf.Fpdf
-}
-
-// BoundingBox stores the current bounding box
-// and exposes method to update it
-type BoundingBox struct {
-	BBox fixed.Rectangle26_6
-	a    fixed.Point26_6 // current point, used to compute the next boundingBox
-}
-
-func (p *BoundingBox) Start(a fixed.Point26_6) {
-	p.a = a
-	p.BBox = fixed.Rectangle26_6{Min: a, Max: a} // degenerate case
-}
-
-func (p *BoundingBox) Line(b fixed.Point26_6) {
-	p.BBox = p.BBox.Union(computeBoundingBox(line{p.a, b}))
-	p.a = b
-}
-
-func (p *BoundingBox) QuadBezier(b fixed.Point26_6, c fixed.Point26_6) {
-	p.BBox = p.BBox.Union(computeBoundingBox(quadBezier{p.a, b, c}))
-	p.a = c
-}
-
-func (p *BoundingBox) CubeBezier(b fixed.Point26_6, c fixed.Point26_6, d fixed.Point26_6) {
-	p.BBox = p.BBox.Union(computeBoundingBox(cubicBezier{p.a, b, c, d}))
-	p.a = d
+	pdf                 *contentstream.Appearance
+	fillOpacityStates   map[float64]*model.GraphicState
+	strokeOpacityStates map[float64]*model.GraphicState
 }
 
 // implements the common path commands,
 // shared by the filler and the stroker
 type pather struct {
-	pdf         *gofpdf.Fpdf
+	pdf         *contentstream.Appearance
 	boundingBox BoundingBox
 }
 
@@ -61,12 +37,14 @@ type pather struct {
 type filler struct {
 	pather
 	useNonZeroWinding bool
+	fillOpacityStates map[float64]*model.GraphicState
 }
 
 // implements the stroking operation, while
 // also writing the path
 type patherStroker struct {
 	pather
+	strokeOpacityStates map[float64]*model.GraphicState
 }
 
 // only stroke the current path, established by
@@ -75,38 +53,56 @@ type stroker struct {
 	patherStroker
 }
 
+func saveApperanceToFile(ap *contentstream.Appearance, filename string) error {
+	var (
+		doc  model.Document
+		page model.PageObject
+	)
+	ap.ApplyToPageObject(&page, true)
+	doc.Catalog.Pages.Kids = append(doc.Catalog.Pages.Kids, &page)
+	return doc.WriteFile(filename, nil)
+}
+
 // RenderSVGIconToPDF reads the given icon and renders it
 // into the given file.
-func RenderSVGIconToPDF(icon io.Reader, pdfname string) error {
+func RenderSVGIconToPDF(icon io.Reader, pdfName string) error {
 	parsedIcon, err := svgicon.ReadIconStream(icon, svgicon.WarnErrorMode)
 	if err != nil {
 		return err
 	}
-	pdf := gofpdf.New("", "", "", "")
-	pdf.AddPage()
-	pdf.TransformBegin()
-	pdf.TransformScale(10000/parsedIcon.ViewBox.W, 10000/parsedIcon.ViewBox.H, 0, 0)
-	renderer := NewRenderer(pdf)
+	ap := contentstream.NewAppearance(595.28, 841.89)
+	// pdf.TransformBegin()
+	// pdf.TransformScale(10000/parsedIcon.ViewBox.W, 10000/parsedIcon.ViewBox.H, 0, 0)
+	renderer := NewRenderer(&ap)
+	ap.Ops(
+		contentstream.OpSave{},
+		contentstream.OpConcat{Matrix: model.Matrix{1, 0, 0, -1, 0, 841.89}},
+	)
 	parsedIcon.Draw(renderer, 1.0)
-	pdf.TransformEnd()
-	return pdf.OutputFileAndClose(pdfname)
+	ap.Ops(contentstream.OpRestore{})
+
+	return saveApperanceToFile(&ap, pdfName)
 }
 
 // NewRenderer return a renderer which will
 // write to the given `pdf`.
-func NewRenderer(pdf *gofpdf.Fpdf) Renderer {
-	return Renderer{pdf: pdf}
+func NewRenderer(cs *contentstream.Appearance) Renderer {
+	return Renderer{
+		pdf:                 cs,
+		fillOpacityStates:   make(map[float64]*model.GraphicState),
+		strokeOpacityStates: make(map[float64]*model.GraphicState),
+	}
 }
 
 func (r Renderer) SetupDrawers(willFill, willDraw bool) (f svgicon.Filler, s svgicon.Stroker) {
 	if willFill { //
-		f = &filler{pather: pather{pdf: r.pdf}}
+		f = &filler{pather: pather{pdf: r.pdf}, fillOpacityStates: r.fillOpacityStates}
 		if willDraw { // dont write the same path twice
-			s = &stroker{patherStroker: patherStroker{pather: pather{pdf: r.pdf}}}
+			s = &stroker{patherStroker: patherStroker{pather: pather{pdf: r.pdf}, strokeOpacityStates: r.strokeOpacityStates}}
 		} // else s = nil
 	} else {
 		if willDraw { // write the path
-			s = &patherStroker{pather: pather{pdf: r.pdf}}
+			s = &patherStroker{pather: pather{pdf: r.pdf}, strokeOpacityStates: r.strokeOpacityStates}
 		}
 	}
 	return f, s
@@ -125,19 +121,21 @@ func (p *pather) Clear() {
 }
 
 func (p *pather) Start(a fixed.Point26_6) {
-	p.pdf.MoveTo(fixedTof(a))
+	x, y := fixedTof(a)
+	p.pdf.Ops(contentstream.OpMoveTo{X: x, Y: y})
 	p.boundingBox.Start(a)
 }
 
 func (p *pather) Line(b fixed.Point26_6) {
-	p.pdf.LineTo(fixedTof(b))
+	x, y := fixedTof(b)
+	p.pdf.Ops(contentstream.OpLineTo{X: x, Y: y})
 	p.boundingBox.Line(b)
 }
 
 func (p *pather) QuadBezier(b fixed.Point26_6, c fixed.Point26_6) {
 	cx, cy := fixedTof(b)
 	x, y := fixedTof(c)
-	p.pdf.CurveTo(cx, cy, x, y)
+	p.pdf.Ops(contentstream.OpCurveTo1{X2: cx, Y2: cy, X3: x, Y3: y})
 	p.boundingBox.QuadBezier(b, c)
 }
 
@@ -145,13 +143,13 @@ func (p *pather) CubeBezier(b fixed.Point26_6, c fixed.Point26_6, d fixed.Point2
 	cx0, cy0 := fixedTof(b)
 	cx1, cy1 := fixedTof(c)
 	x, y := fixedTof(d)
-	p.pdf.CurveBezierCubicTo(cx0, cy0, cx1, cy1, x, y)
+	p.pdf.Ops(contentstream.OpCubicTo{X1: cx0, Y1: cy0, X2: cx1, Y2: cy1, X3: x, Y3: y})
 	p.boundingBox.CubeBezier(b, c, d)
 }
 
 func (p *pather) Stop(closeLoop bool) {
 	if closeLoop {
-		p.pdf.ClosePath()
+		p.pdf.Ops(contentstream.OpClosePath{})
 	}
 }
 
@@ -159,19 +157,26 @@ func (p *pather) Stop(closeLoop bool) {
 func (f filler) Draw(color svgicon.Pattern, opacity float64) {
 	switch color := color.(type) {
 	case svgicon.PlainColor:
-		f.pdf.SetFillColor(int(color.R), int(color.G), int(color.B))
+		f.pdf.SetColorFill(color)
 		opacity *= float64(color.A) / 255.
-		f.pdf.SetAlpha(opacity, "")
+		// cache the opacity states
+		gs, ok := f.fillOpacityStates[opacity]
+		if !ok {
+			gs = &model.GraphicState{Ca: model.ObjFloat(opacity), BM: []model.Name{"Normal"}}
+			f.fillOpacityStates[opacity] = gs
+		}
+		name := f.pdf.AddExtGState(gs)
+		f.pdf.Ops(contentstream.OpSetExtGState{Dict: name})
 	case svgicon.Gradient:
-		// mat := color.ApplyPathExtent(f.boundingBox)
+		// mat := color.ApplyPathExtent(f.boundingBox.BBox)
 
 	}
 
-	styleStr := "f*"
 	if f.useNonZeroWinding {
-		styleStr = "f"
+		f.pdf.Ops(contentstream.OpFill{})
+	} else {
+		f.pdf.Ops(contentstream.OpEOFill{})
 	}
-	f.pdf.DrawPath(styleStr)
 }
 
 func (f *filler) SetWinding(useNonZeroWinding bool) {
@@ -179,42 +184,52 @@ func (f *filler) SetWinding(useNonZeroWinding bool) {
 }
 
 func (f *patherStroker) SetStrokeOptions(options svgicon.StrokeOptions) {
-	f.pdf.SetDashPattern(options.Dash.Dash, options.Dash.DashOffset)
-	f.pdf.SetLineWidth(float64(options.LineWidth) / 64)
-	var lineCapStyle string
+	var capStyle, joinStyle uint8
 	switch options.Join.TrailLineCap {
 	case svgicon.ButtCap:
-		lineCapStyle = "butt"
+		capStyle = 0
 	case svgicon.RoundCap:
-		lineCapStyle = "round"
+		capStyle = 1
 	case svgicon.SquareCap:
-		lineCapStyle = "square"
+		capStyle = 2
 	}
-	f.pdf.SetLineCapStyle(lineCapStyle)
-
-	var lineJoinStyle string
 	switch options.Join.LineJoin {
 	case svgicon.Bevel:
-		lineJoinStyle = "bevel"
+		joinStyle = 2
 	case svgicon.Miter:
-		lineJoinStyle = "miter"
+		joinStyle = 0
 	case svgicon.Round:
-		lineJoinStyle = "round"
+		joinStyle = 1
 	}
-	f.pdf.SetLineJoinStyle(lineJoinStyle)
-	// TODO: add suport for miter limit
-	// f.pdf.SetMiterLimit(float64(options.Join.MiterLimit) / 64)
+
+	f.pdf.Ops(
+		contentstream.OpSetDash{Dash: model.DashPattern{
+			Array: options.Dash.Dash,
+			Phase: options.Dash.DashOffset,
+		}},
+		contentstream.OpSetLineWidth{W: float64(options.LineWidth) / 64},
+		contentstream.OpSetLineCap{Style: capStyle},
+		contentstream.OpSetLineJoin{Style: joinStyle},
+		contentstream.OpSetMiterLimit{Limit: float64(options.Join.MiterLimit) / 64},
+	)
 }
 
 // TODO: support gradient
 func (f patherStroker) Draw(color svgicon.Pattern, opacity float64) {
 	switch color := color.(type) {
 	case svgicon.PlainColor:
-		f.pdf.SetDrawColor(int(color.R), int(color.G), int(color.B))
+		f.pdf.SetColorStroke(color)
 		opacity *= float64(color.A) / 255.
-		f.pdf.SetAlpha(opacity, "")
+		// cache the opacity states
+		gs, ok := f.strokeOpacityStates[opacity]
+		if !ok {
+			gs = &model.GraphicState{CA: model.ObjFloat(opacity), BM: []model.Name{"Normal"}}
+			f.strokeOpacityStates[opacity] = gs
+		}
+		name := f.pdf.AddExtGState(gs)
+		f.pdf.Ops(contentstream.OpSetExtGState{Dict: name})
 	}
-	f.pdf.DrawPath("S")
+	f.pdf.Ops(contentstream.OpStroke{})
 }
 
 // the stroker doesnt write the path again

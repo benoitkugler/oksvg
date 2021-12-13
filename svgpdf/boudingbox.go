@@ -114,15 +114,15 @@ func cubicDerivative(p0, p1, p2, p3 float64) (a, b, c float64) {
 	return 3*p3 - 9*p2 + 9*p1 - 3*p0, 6*p2 - 12*p1 + 6*p0, 3*p1 - 3*p0
 }
 
-//b^2 - 4ac = Determinant
+// b^2 - 4ac = Determinant
 func determinant(a, b, c float64) float64 { return b*b - 4*a*c }
 
-func _solve(a_, b_, c_ float64, s bool) float64 {
+func solve(a, b, c float64, s bool) float64 {
 	sign := 1.
 	if !s {
 		sign = -1.
 	}
-	return (-b_ + (math.Sqrt((b_*b_)-(4*a_*c_)) * sign)) / (2 * a_)
+	return (-b + (math.Sqrt((b*b)-(4*a*c)) * sign)) / (2 * a)
 }
 
 func quadraticRoots(a, b, c float64) []float64 {
@@ -132,17 +132,17 @@ func quadraticRoots(a, b, c float64) []float64 {
 	}
 
 	if a == 0 {
-		//aX^2 + bX + c well then then this is a simple line
-		//x= -c / b
+		// aX^2 + bX + c well then then this is a simple line
+		// x= -c / b
 		return []float64{-c / b}
 	}
 
 	if d == 0 {
-		return []float64{_solve(a, b, c, true)}
+		return []float64{solve(a, b, c, true)}
 	} else {
 		return []float64{
-			_solve(a, b, c, true),
-			_solve(a, b, c, false),
+			solve(a, b, c, true),
+			solve(a, b, c, false),
 		}
 	}
 }
@@ -183,4 +183,31 @@ func computeBoundingBox(curve bezier) fixed.Rectangle26_6 {
 		maxY = math.Max(e[1], maxY)
 	}
 	return fixed.Rectangle26_6{Min: fToFixed(minX, minY), Max: fToFixed(maxX, maxY)}
+}
+
+// BoundingBox stores the current bounding box
+// and exposes method to update it
+type BoundingBox struct {
+	BBox fixed.Rectangle26_6
+	a    fixed.Point26_6 // current point, used to compute the next boundingBox
+}
+
+func (p *BoundingBox) Start(a fixed.Point26_6) {
+	p.a = a
+	p.BBox = fixed.Rectangle26_6{Min: a, Max: a} // degenerate case
+}
+
+func (p *BoundingBox) Line(b fixed.Point26_6) {
+	p.BBox = p.BBox.Union(computeBoundingBox(line{p.a, b}))
+	p.a = b
+}
+
+func (p *BoundingBox) QuadBezier(b fixed.Point26_6, c fixed.Point26_6) {
+	p.BBox = p.BBox.Union(computeBoundingBox(quadBezier{p.a, b, c}))
+	p.a = c
+}
+
+func (p *BoundingBox) CubeBezier(b fixed.Point26_6, c fixed.Point26_6, d fixed.Point26_6) {
+	p.BBox = p.BBox.Union(computeBoundingBox(cubicBezier{p.a, b, c, d}))
+	p.a = d
 }

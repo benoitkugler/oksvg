@@ -6,43 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/jung-kurt/gofpdf"
 )
-
-func TestBoundingBox(t *testing.T) {
-	p := pather{pdf: gofpdf.New("", "", "", "")}
-	p.pdf.AddPage()
-
-	p.Start(randPoint(40, 40))
-	p.Line(randPoint(40, 40))
-	p.QuadBezier(randPoint(35, 35), randPoint(45, 45))
-	p.QuadBezier(randPoint(35, 35), randPoint(45, 45))
-	p.CubeBezier(randPoint(35, 35), randPoint(45, 45), randPoint(30, 30))
-	p.Stop(true)
-	p.pdf.DrawPath("D")
-
-	p.pdf.SetFillColor(100, 100, 100)
-	p.pdf.SetAlpha(0.3, "")
-	drawRectange(p.pdf, p.boundingBox.BBox)
-
-	p.Clear()
-	p.Start(randPoint(40, 1020))
-	p.Line(randPoint(40, 1020))
-	p.QuadBezier(randPoint(35, 1035), randPoint(45, 1045))
-	p.QuadBezier(randPoint(35, 1035), randPoint(45, 1045))
-	p.CubeBezier(randPoint(35, 1035), randPoint(45, 1045), randPoint(30, 1030))
-	p.Stop(true)
-	p.pdf.SetAlpha(1, "")
-	p.pdf.DrawPath("D")
-
-	p.pdf.SetAlpha(0.3, "")
-	drawRectange(p.pdf, p.boundingBox.BBox)
-
-	if err := p.pdf.OutputFileAndClose("testdata_out/path_bbox.pdf"); err != nil {
-		t.Error(err)
-	}
-}
 
 func renderIcon(t *testing.T, filename string) {
 	filename = filepath.Join("..", "svgicon", filename)
