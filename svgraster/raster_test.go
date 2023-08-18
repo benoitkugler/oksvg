@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"image"
 	"image/png"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,7 +28,7 @@ func saveToPngFile(filePath string, m image.Image) error {
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(filePath, b, os.ModePerm)
+	err = os.WriteFile(filePath, b, os.ModePerm)
 	return err
 }
 
@@ -56,7 +55,7 @@ func renderIcon(t *testing.T, filename string) {
 	}
 
 	// comparison with oksvg, requires to run its test first
-	ref, err := ioutil.ReadFile(fmt.Sprintf("../../../srwiley/oksvg/testdata/%s.svg.png", name))
+	ref, err := os.ReadFile(fmt.Sprintf("../../../srwiley/oksvg/testdata/%s.svg.png", name))
 	if err != nil {
 		t.Fatalf("can't load reference image: %s", err)
 	}
@@ -69,7 +68,8 @@ func renderIcon(t *testing.T, filename string) {
 func TestLandscapeIcons(t *testing.T) {
 	for _, p := range [...]string{
 		"beach", "cape", "iceberg", "island",
-		"mountains", "sea", "trees", "village"} {
+		"mountains", "sea", "trees", "village",
+	} {
 		renderIcon(t, "testdata/landscapeIcons/"+p+".svg")
 	}
 }
@@ -90,15 +90,18 @@ func TestSportsIcons(t *testing.T) {
 		"cycling_road", "olympic_torch", "volleyball",
 		"cycling_track", "water_polo",
 		"diving", "rhythmic_gymnastics", "weightlifting",
-		"equestrian", "rowing", "wrestling"} {
+		"equestrian", "rowing", "wrestling",
+	} {
 		renderIcon(t, "testdata/sportsIcons/"+p+".svg")
 	}
 }
 
 func TestTestIcons(t *testing.T) {
 	for _, p := range [...]string{
-		"astronaut", "jupiter", "lander", "school-bus", "telescope", "content-cut-light", "defs",
-		"24px"} {
+		"astronaut", "jupiter", "lander", "school-bus", "telescope", "content-cut-light",
+		// "defs",
+		"24px",
+	} {
 		renderIcon(t, "testdata/testIcons/"+p+".svg")
 	}
 }

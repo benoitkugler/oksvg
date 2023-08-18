@@ -21,7 +21,7 @@ var (
 )
 
 type Renderer struct {
-	pdf                 *contentstream.Appearance
+	pdf                 *contentstream.GraphicStream
 	fillOpacityStates   map[float64]*model.GraphicState
 	strokeOpacityStates map[float64]*model.GraphicState
 }
@@ -29,7 +29,7 @@ type Renderer struct {
 // implements the common path commands,
 // shared by the filler and the stroker
 type pather struct {
-	pdf         *contentstream.Appearance
+	pdf         *contentstream.GraphicStream
 	boundingBox BoundingBox
 }
 
@@ -53,7 +53,7 @@ type stroker struct {
 	patherStroker
 }
 
-func saveApperanceToFile(ap *contentstream.Appearance, filename string) error {
+func saveApperanceToFile(ap *contentstream.GraphicStream, filename string) error {
 	var (
 		doc  model.Document
 		page model.PageObject
@@ -70,7 +70,7 @@ func RenderSVGIconToPDF(icon io.Reader, pdfName string) error {
 	if err != nil {
 		return err
 	}
-	ap := contentstream.NewAppearance(595.28, 841.89)
+	ap := contentstream.NewGraphicStream(model.Rectangle{Urx: 595.28, Ury: 841.89})
 	// pdf.TransformBegin()
 	// pdf.TransformScale(10000/parsedIcon.ViewBox.W, 10000/parsedIcon.ViewBox.H, 0, 0)
 	renderer := NewRenderer(&ap)
@@ -86,7 +86,7 @@ func RenderSVGIconToPDF(icon io.Reader, pdfName string) error {
 
 // NewRenderer return a renderer which will
 // write to the given `pdf`.
-func NewRenderer(cs *contentstream.Appearance) Renderer {
+func NewRenderer(cs *contentstream.GraphicStream) Renderer {
 	return Renderer{
 		pdf:                 cs,
 		fillOpacityStates:   make(map[float64]*model.GraphicState),
@@ -108,8 +108,8 @@ func (r Renderer) SetupDrawers(willFill, willDraw bool) (f svgicon.Filler, s svg
 	return f, s
 }
 
-func fixedTof(a fixed.Point26_6) (float64, float64) {
-	return float64(a.X) / 64, float64(a.Y) / 64
+func fixedTof(a fixed.Point26_6) (model.Fl, model.Fl) {
+	return model.Fl(a.X) / 64, model.Fl(a.Y) / 64
 }
 
 func fToFixed(x, y float64) fixed.Point26_6 {
@@ -202,15 +202,19 @@ func (f *patherStroker) SetStrokeOptions(options svgicon.StrokeOptions) {
 		joinStyle = 1
 	}
 
+	dash := make([]model.Fl, len(options.Dash.Dash))
+	for i, v := range options.Dash.Dash {
+		dash[i] = model.Fl(v)
+	}
 	f.pdf.Ops(
 		contentstream.OpSetDash{Dash: model.DashPattern{
-			Array: options.Dash.Dash,
-			Phase: options.Dash.DashOffset,
+			Array: dash,
+			Phase: model.Fl(options.Dash.DashOffset),
 		}},
-		contentstream.OpSetLineWidth{W: float64(options.LineWidth) / 64},
+		contentstream.OpSetLineWidth{W: model.Fl(options.LineWidth) / 64},
 		contentstream.OpSetLineCap{Style: capStyle},
 		contentstream.OpSetLineJoin{Style: joinStyle},
-		contentstream.OpSetMiterLimit{Limit: float64(options.Join.MiterLimit) / 64},
+		contentstream.OpSetMiterLimit{Limit: model.Fl(options.Join.MiterLimit) / 64},
 	)
 }
 

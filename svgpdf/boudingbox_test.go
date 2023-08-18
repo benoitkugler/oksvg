@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/benoitkugler/pdf/contentstream"
+	"github.com/benoitkugler/pdf/model"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -49,7 +50,7 @@ func drawOneBox(p pather, order int, offsetx, offsety int) {
 }
 
 func TestBoudindBox(t *testing.T) {
-	ap := contentstream.NewAppearance(500, 500)
+	ap := contentstream.NewGraphicStream(model.Rectangle{Urx: 500, Ury: 500})
 	p := pather{pdf: &ap}
 	p.pdf.SetColorFill(color.RGBA{50, 50, 50, 255})
 	p.pdf.SetColorStroke(color.RGBA{50, 0, 50, 255})
@@ -66,7 +67,7 @@ func TestBoudindBox(t *testing.T) {
 	}
 }
 
-func drawRectange(p *contentstream.Appearance, rect fixed.Rectangle26_6) {
+func drawRectange(p *contentstream.GraphicStream, rect fixed.Rectangle26_6) {
 	xmin, ymin := fixedTof(rect.Min)
 	xmax, ymax := fixedTof(rect.Max)
 	p.Ops(
@@ -76,7 +77,7 @@ func drawRectange(p *contentstream.Appearance, rect fixed.Rectangle26_6) {
 }
 
 func TestAggregateBoxes(t *testing.T) {
-	pdf := contentstream.NewAppearance(100, 100)
+	pdf := contentstream.NewGraphicStream(model.Rectangle{Urx: 100, Ury: 100})
 	for i := range [6]int{} {
 		for j := range [9]int{} {
 			min1 := randPoint(i<<11+100, j<<11+100)

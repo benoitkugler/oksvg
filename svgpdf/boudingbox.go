@@ -3,6 +3,7 @@ package svgpdf
 import (
 	"math"
 
+	"github.com/benoitkugler/pdf/model"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -10,17 +11,17 @@ import (
 
 type line [2]fixed.Point26_6
 
-func (l line) criticalPoints() (tX, tY []float64) {
+func (l line) criticalPoints() (tX, tY []model.Fl) {
 	return nil, nil
 }
 
-func (l line) evaluateCurve(t float64) (x, y float64) {
+func (l line) evaluateCurve(t model.Fl) (x, y model.Fl) {
 	p0x, p0y := fixedTof(l[0])
 	p1x, p1y := fixedTof(l[1])
 	return bezierLine(p0x, p1x, t), bezierLine(p0y, p1y, t)
 }
 
-func bezierLine(p0, p1, t float64) float64 {
+func bezierLine(p0, p1, t model.Fl) model.Fl {
 	return (p1-p0)*t + p0
 }
 
@@ -32,24 +33,24 @@ type quadBezier [3]fixed.Point26_6
 // A = p0 + p2 - 2p1
 // B = 2(p1 - p0)
 // C = p0
-func bezierQuad(p0, p1, p2, t float64) float64 {
+func bezierQuad(p0, p1, p2, t model.Fl) model.Fl {
 	return (p0+p2-2*p1)*t*t + 2*(p1-p0)*t + p0
 }
 
 // derivative as at + b where a,b :
-func quadraticDerivative(p0, p1, p2 float64) (a, b float64) {
+func quadraticDerivative(p0, p1, p2 model.Fl) (a, b model.Fl) {
 	return 2 * (p2 - p1 - (p1 - p0)), 2 * (p1 - p0)
 }
 
 // handle the case where a = 0
-func linearRoots(a, b float64) []float64 {
+func linearRoots(a, b model.Fl) []model.Fl {
 	if a == 0 {
 		return nil
 	}
-	return []float64{-b / a}
+	return []model.Fl{-b / a}
 }
 
-func (cu quadBezier) criticalPoints() (tX, tY []float64) {
+func (cu quadBezier) criticalPoints() (tX, tY []model.Fl) {
 	p0x, p0y := fixedTof(cu[0])
 	p1x, p1y := fixedTof(cu[1])
 	p2x, p2y := fixedTof(cu[2])
@@ -60,7 +61,7 @@ func (cu quadBezier) criticalPoints() (tX, tY []float64) {
 	return linearRoots(aX, bX), linearRoots(aY, bY)
 }
 
-func (cu quadBezier) evaluateCurve(t float64) (x, y float64) {
+func (cu quadBezier) evaluateCurve(t model.Fl) (x, y model.Fl) {
 	p0x, p0y := fixedTof(cu[0])
 	p1x, p1y := fixedTof(cu[1])
 	p2x, p2y := fixedTof(cu[2])
@@ -69,7 +70,7 @@ func (cu quadBezier) evaluateCurve(t float64) (x, y float64) {
 
 type cubicBezier [4]fixed.Point26_6
 
-func (cu cubicBezier) criticalPoints() (tX, tY []float64) {
+func (cu cubicBezier) criticalPoints() (tX, tY []model.Fl) {
 	p1x, p1y := fixedTof(cu[0])
 	c1x, c1y := fixedTof(cu[1])
 	c2x, c2y := fixedTof(cu[2])
@@ -81,7 +82,7 @@ func (cu cubicBezier) criticalPoints() (tX, tY []float64) {
 	return quadraticRoots(aX, bX, cX), quadraticRoots(aY, bY, cY)
 }
 
-func (cu cubicBezier) evaluateCurve(t float64) (x, y float64) {
+func (cu cubicBezier) evaluateCurve(t model.Fl) (x, y model.Fl) {
 	p0x, p0y := fixedTof(cu[0])
 	p1x, p1y := fixedTof(cu[1])
 	p2x, p2y := fixedTof(cu[2])
@@ -96,7 +97,7 @@ func (cu cubicBezier) evaluateCurve(t float64) (x, y float64) {
 // B = 3 * p2 - 6 * p1 +3 * p0
 // C = 3 * p1 - 3 * p0
 // D = p0
-func bezierSpline(p0, p1, p2, p3, t float64) float64 {
+func bezierSpline(p0, p1, p2, p3, t model.Fl) model.Fl {
 	return (p3-3*p2+3*p1-p0)*t*t*t +
 		(3*p2-6*p1+3*p0)*t*t +
 		(3*p1-3*p0)*t +
@@ -110,22 +111,22 @@ func bezierSpline(p0, p1, p2, p3, t float64) float64 {
 // simplified:
 // X' = (3*p3-9*p2+9*p1-3*p0)t^2 + (6*p2-12*p1+6*p0)t + (3*p1-3*p0)
 // taken as aX^2 + bX + c  a,b and c are:
-func cubicDerivative(p0, p1, p2, p3 float64) (a, b, c float64) {
+func cubicDerivative(p0, p1, p2, p3 model.Fl) (a, b, c model.Fl) {
 	return 3*p3 - 9*p2 + 9*p1 - 3*p0, 6*p2 - 12*p1 + 6*p0, 3*p1 - 3*p0
 }
 
 // b^2 - 4ac = Determinant
-func determinant(a, b, c float64) float64 { return b*b - 4*a*c }
+func determinant(a, b, c model.Fl) model.Fl { return b*b - 4*a*c }
 
-func solve(a, b, c float64, s bool) float64 {
-	sign := 1.
+func solve(a, b, c model.Fl, s bool) model.Fl {
+	var sign model.Fl = 1.
 	if !s {
 		sign = -1.
 	}
-	return (-b + (math.Sqrt((b*b)-(4*a*c)) * sign)) / (2 * a)
+	return (-b + (model.Fl(math.Sqrt(float64((b*b)-(4*a*c)))) * sign)) / (2 * a)
 }
 
-func quadraticRoots(a, b, c float64) []float64 {
+func quadraticRoots(a, b, c model.Fl) []model.Fl {
 	d := determinant(a, b, c)
 	if d < 0 {
 		return nil
@@ -134,13 +135,13 @@ func quadraticRoots(a, b, c float64) []float64 {
 	if a == 0 {
 		// aX^2 + bX + c well then then this is a simple line
 		// x= -c / b
-		return []float64{-c / b}
+		return []model.Fl{-c / b}
 	}
 
 	if d == 0 {
-		return []float64{solve(a, b, c, true)}
+		return []model.Fl{solve(a, b, c, true)}
 	} else {
-		return []float64{
+		return []model.Fl{
 			solve(a, b, c, true),
 			solve(a, b, c, false),
 		}
@@ -149,16 +150,16 @@ func quadraticRoots(a, b, c float64) []float64 {
 
 type bezier interface {
 	// compute the t zeroing the derivative
-	criticalPoints() (tX, tY []float64)
+	criticalPoints() (tX, tY []model.Fl)
 	// compute the point a time t
-	evaluateCurve(t float64) (x, y float64)
+	evaluateCurve(t model.Fl) (x, y model.Fl)
 }
 
 func computeBoundingBox(curve bezier) fixed.Rectangle26_6 {
 	resX, resY := curve.criticalPoints()
 
 	// draw min and max
-	var bbox [][2]float64
+	var bbox [][2]model.Fl
 
 	// add begin and end point
 	for _, t := range append(append(resX, 0, 1), resY...) {
@@ -168,7 +169,7 @@ func computeBoundingBox(curve bezier) fixed.Rectangle26_6 {
 		}
 		x, y := curve.evaluateCurve(t)
 
-		bbox = append(bbox, [2]float64{x, y})
+		bbox = append(bbox, [2]model.Fl{x, y})
 	}
 
 	minX := math.Inf(1)
@@ -177,10 +178,10 @@ func computeBoundingBox(curve bezier) fixed.Rectangle26_6 {
 	maxY := math.Inf(-1)
 
 	for _, e := range bbox {
-		minX = math.Min(e[0], minX)
-		minY = math.Min(e[1], minY)
-		maxX = math.Max(e[0], maxX)
-		maxY = math.Max(e[1], maxY)
+		minX = math.Min(float64(e[0]), minX)
+		minY = math.Min(float64(e[1]), minY)
+		maxX = math.Max(float64(e[0]), maxX)
+		maxY = math.Max(float64(e[1]), maxY)
 	}
 	return fixed.Rectangle26_6{Min: fToFixed(minX, minY), Max: fToFixed(maxX, maxY)}
 }
