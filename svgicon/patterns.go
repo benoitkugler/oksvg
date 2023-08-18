@@ -2,6 +2,7 @@ package svgicon
 
 import (
 	"encoding/xml"
+	"fmt"
 	"image/color"
 	"strconv"
 	"strings"
@@ -66,6 +67,8 @@ func parseSVGColor(colorStr string) (optionnalColor, error) {
 		// nil signals that the function (fill or stroke) is off;
 		// not the same as black
 		return optionnalColor{}, nil
+	case "transparent":
+		return optionnalColor{valid: true, color: PlainColor{color.NRGBA{0, 0, 0, 0}}}, nil
 	default:
 		cn, ok := colornames.Map[v]
 		if ok {
@@ -78,7 +81,7 @@ func parseSVGColor(colorStr string) (optionnalColor, error) {
 		cStr := strings.TrimSuffix(cStr, ")")
 		vals := strings.Split(cStr, ",")
 		if len(vals) != 3 {
-			return toOptColor(PlainColor{}), errParamMismatch
+			return toOptColor(PlainColor{}), fmt.Errorf("invalid color: %s", colorStr)
 		}
 		var cvals [3]uint8
 		var err error
@@ -97,7 +100,7 @@ func parseSVGColor(colorStr string) (optionnalColor, error) {
 		}
 		return toOptColor(NewPlainColor(r, g, b, 0xFF)), nil
 	}
-	return optionnalColor{}, errParamMismatch
+	return optionnalColor{}, fmt.Errorf("invalid color: %s", colorStr)
 }
 
 func parseColorValue(v string) (uint8, error) {
@@ -121,8 +124,10 @@ func parseSVGColorNum(colorStr string) (r, g, b uint8, err error) {
 	var t uint64
 	if len(colorStr) != 6 {
 		// SVG specs say duplicate characters in case of 3 digit hex number
-		colorStr = string([]byte{colorStr[0], colorStr[0],
-			colorStr[1], colorStr[1], colorStr[2], colorStr[2]})
+		colorStr = string([]byte{
+			colorStr[0], colorStr[0],
+			colorStr[1], colorStr[1], colorStr[2], colorStr[2],
+		})
 	}
 	for _, v := range []struct {
 		c *uint8
@@ -130,7 +135,8 @@ func parseSVGColorNum(colorStr string) (r, g, b uint8, err error) {
 	}{
 		{&r, colorStr[0:2]},
 		{&g, colorStr[2:4]},
-		{&b, colorStr[4:6]}} {
+		{&b, colorStr[4:6]},
+	} {
 		t, err = strconv.ParseUint(v.s, 16, 8)
 		if err != nil {
 			return

@@ -1,13 +1,12 @@
 package svgicon
 
 import (
-	"fmt"
-	"strings"
-
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"log"
 	"math"
+	"strings"
 
 	"golang.org/x/image/math/fixed"
 )
@@ -56,7 +55,7 @@ func (c *iconCursor) readTransformAttr(m1 Matrix2D, k string) (Matrix2D, error) 
 				Rotate(c.points[0]*math.Pi/180).
 				Translate(-c.points[1], -c.points[2])
 		} else {
-			return m1, errParamMismatch
+			return m1, errTransformParamMismatch
 		}
 	case "translate":
 		if ln == 1 {
@@ -64,19 +63,19 @@ func (c *iconCursor) readTransformAttr(m1 Matrix2D, k string) (Matrix2D, error) 
 		} else if ln == 2 {
 			m1 = m1.Translate(c.points[0], c.points[1])
 		} else {
-			return m1, errParamMismatch
+			return m1, errTransformParamMismatch
 		}
 	case "skewx":
 		if ln == 1 {
 			m1 = m1.SkewX(c.points[0] * math.Pi / 180)
 		} else {
-			return m1, errParamMismatch
+			return m1, errTransformParamMismatch
 		}
 	case "skewy":
 		if ln == 1 {
 			m1 = m1.SkewY(c.points[0] * math.Pi / 180)
 		} else {
-			return m1, errParamMismatch
+			return m1, errTransformParamMismatch
 		}
 	case "scale":
 		if ln == 1 {
@@ -84,7 +83,7 @@ func (c *iconCursor) readTransformAttr(m1 Matrix2D, k string) (Matrix2D, error) 
 		} else if ln == 2 {
 			m1 = m1.Scale(c.points[0], c.points[1])
 		} else {
-			return m1, errParamMismatch
+			return m1, errTransformParamMismatch
 		}
 	case "matrix":
 		if ln == 6 {
@@ -94,12 +93,13 @@ func (c *iconCursor) readTransformAttr(m1 Matrix2D, k string) (Matrix2D, error) 
 				C: c.points[2],
 				D: c.points[3],
 				E: c.points[4],
-				F: c.points[5]})
+				F: c.points[5],
+			})
 		} else {
-			return m1, errParamMismatch
+			return m1, errTransformParamMismatch
 		}
 	default:
-		return m1, errParamMismatch
+		return m1, errTransformParamMismatch
 	}
 	return m1, nil
 }
@@ -114,7 +114,7 @@ func (c *iconCursor) parseTransform(v string) (Matrix2D, error) {
 		}
 		d := strings.Split(t, "(")
 		if len(d) != 2 || len(d[1]) < 1 {
-			return m1, errParamMismatch // badly formed transformation
+			return m1, errors.New("invalid transformation") // badly formed transformation
 		}
 		err := c.getPoints(d[1])
 		if err != nil {
@@ -338,7 +338,7 @@ func (c *iconCursor) readStartElement(se xml.StartElement) (err error) {
 	err = df(c, se.Attr)
 
 	if len(c.path) > 0 {
-		//The cursor parsed a path from the xml element
+		// The cursor parsed a path from the xml element
 		pathCopy := append(Path{}, c.path...)
 		c.icon.SVGPaths = append(c.icon.SVGPaths,
 			SvgPath{Path: pathCopy, Style: c.styleStack[len(c.styleStack)-1]})

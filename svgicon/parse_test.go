@@ -56,3 +56,11 @@ func TestInvalidXML(t *testing.T) {
 		t.Fatal("expected error on invalid input")
 	}
 }
+
+func TestIssue3(t *testing.T) {
+	// make sure transparent color is properly handled
+	_, errSvg := ReadIcon("testdata/issue3.svg", WarnErrorMode)
+	if errSvg != nil {
+		t.Fatal(errSvg)
+	}
+}

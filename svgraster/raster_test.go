@@ -151,3 +151,18 @@ func TestRadialGradientUserSpace(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestTransparentColor(t *testing.T) {
+	f, err := os.Open(filepath.Join("..", "svgicon", "testdata/issue3.svg"))
+	if err != nil {
+		t.Fatalf("can't open svg source: %s", err)
+	}
+	img, err := RasterSVGIconToImage(f)
+	if err != nil {
+		t.Fatalf("can't raster image: %s", err)
+	}
+	err = saveToPngFile("testdata_out/issue3.png", img)
+	if err != nil {
+		t.Fatalf("can't saved rasterized image: %s", err)
+	}
+}

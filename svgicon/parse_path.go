@@ -24,9 +24,10 @@ const (
 )
 
 var (
-	errParamMismatch  = errors.New("param mismatch")
-	errCommandUnknown = errors.New("unknown command")
-	errZeroLengthID   = errors.New("zero length id")
+	errTransformParamMismatch = errors.New("parsing transform: param mismatch")
+	errPathParamMismatch      = errors.New("parsing path: param mismatch")
+	errCommandUnknown         = errors.New("unknown command")
+	errZeroLengthID           = errors.New("zero length id")
 )
 
 // pathCursor is used to parse SVG format path strings into a Path
@@ -198,7 +199,7 @@ func (c *pathCursor) addSeg(segString string) error {
 		fallthrough
 	case 'Z':
 		if len(c.points) != 0 {
-			return errParamMismatch
+			return errPathParamMismatch
 		}
 		if c.inPath {
 			c.path.Stop(true)
@@ -211,7 +212,7 @@ func (c *pathCursor) addSeg(segString string) error {
 		fallthrough
 	case 'M':
 		if !c.hasSetsOrMore(2, rel) {
-			return errParamMismatch
+			return errPathParamMismatch
 		}
 		c.pathStartX, c.pathStartY = c.points[0], c.points[1]
 		c.inPath = true
@@ -219,7 +220,8 @@ func (c *pathCursor) addSeg(segString string) error {
 		for i := 2; i < l-1; i += 2 {
 			c.path.Line(fixed.Point26_6{
 				X: fixed.Int26_6((c.points[i] + c.curX) * 64),
-				Y: fixed.Int26_6((c.points[i+1] + c.curY) * 64)})
+				Y: fixed.Int26_6((c.points[i+1] + c.curY) * 64),
+			})
 		}
 		c.placeX = c.points[l-2]
 		c.placeY = c.points[l-1]
@@ -228,12 +230,13 @@ func (c *pathCursor) addSeg(segString string) error {
 		fallthrough
 	case 'L':
 		if !c.hasSetsOrMore(2, rel) {
-			return errParamMismatch
+			return errPathParamMismatch
 		}
 		for i := 0; i < l-1; i += 2 {
 			c.path.Line(fixed.Point26_6{
 				X: fixed.Int26_6((c.points[i] + c.curX) * 64),
-				Y: fixed.Int26_6((c.points[i+1] + c.curY) * 64)})
+				Y: fixed.Int26_6((c.points[i+1] + c.curY) * 64),
+			})
 		}
 		c.placeX = c.points[l-2]
 		c.placeY = c.points[l-1]
@@ -242,12 +245,13 @@ func (c *pathCursor) addSeg(segString string) error {
 		fallthrough
 	case 'V':
 		if !c.hasSetsOrMore(1, false) {
-			return errParamMismatch
+			return errPathParamMismatch
 		}
 		for _, p := range c.points {
 			c.path.Line(fixed.Point26_6{
 				X: fixed.Int26_6((c.placeX + c.curX) * 64),
-				Y: fixed.Int26_6((p + c.curY) * 64)})
+				Y: fixed.Int26_6((p + c.curY) * 64),
+			})
 		}
 		c.placeY = c.points[l-1]
 	case 'h':
@@ -255,12 +259,13 @@ func (c *pathCursor) addSeg(segString string) error {
 		fallthrough
 	case 'H':
 		if !c.hasSetsOrMore(1, false) {
-			return errParamMismatch
+			return errPathParamMismatch
 		}
 		for _, p := range c.points {
 			c.path.Line(fixed.Point26_6{
 				X: fixed.Int26_6((p + c.curX) * 64),
-				Y: fixed.Int26_6((c.placeY + c.curY) * 64)})
+				Y: fixed.Int26_6((c.placeY + c.curY) * 64),
+			})
 		}
 		c.placeX = c.points[l-1]
 	case 'q':
@@ -268,16 +273,18 @@ func (c *pathCursor) addSeg(segString string) error {
 		fallthrough
 	case 'Q':
 		if !c.hasSetsOrMore(4, rel) {
-			return errParamMismatch
+			return errPathParamMismatch
 		}
 		for i := 0; i < l-3; i += 4 {
 			c.path.QuadBezier(
 				fixed.Point26_6{
 					X: fixed.Int26_6((c.points[i] + c.curX) * 64),
-					Y: fixed.Int26_6((c.points[i+1] + c.curY) * 64)},
+					Y: fixed.Int26_6((c.points[i+1] + c.curY) * 64),
+				},
 				fixed.Point26_6{
 					X: fixed.Int26_6((c.points[i+2] + c.curX) * 64),
-					Y: fixed.Int26_6((c.points[i+3] + c.curY) * 64)})
+					Y: fixed.Int26_6((c.points[i+3] + c.curY) * 64),
+				})
 		}
 		c.cntlPtX, c.cntlPtY = c.points[l-4], c.points[l-3]
 		c.placeX = c.points[l-2]
@@ -287,17 +294,19 @@ func (c *pathCursor) addSeg(segString string) error {
 		fallthrough
 	case 'T':
 		if !c.hasSetsOrMore(2, rel) {
-			return errParamMismatch
+			return errPathParamMismatch
 		}
 		for i := 0; i < l-1; i += 2 {
 			c.reflectControlQuad()
 			c.path.QuadBezier(
 				fixed.Point26_6{
 					X: fixed.Int26_6((c.cntlPtX + c.curX) * 64),
-					Y: fixed.Int26_6((c.cntlPtY + c.curY) * 64)},
+					Y: fixed.Int26_6((c.cntlPtY + c.curY) * 64),
+				},
 				fixed.Point26_6{
 					X: fixed.Int26_6((c.points[i] + c.curX) * 64),
-					Y: fixed.Int26_6((c.points[i+1] + c.curY) * 64)})
+					Y: fixed.Int26_6((c.points[i+1] + c.curY) * 64),
+				})
 			c.lastKey = k
 			c.placeX = c.points[i]
 			c.placeY = c.points[i+1]
@@ -307,19 +316,22 @@ func (c *pathCursor) addSeg(segString string) error {
 		fallthrough
 	case 'C':
 		if !c.hasSetsOrMore(6, rel) {
-			return errParamMismatch
+			return errPathParamMismatch
 		}
 		for i := 0; i < l-5; i += 6 {
 			c.path.CubeBezier(
 				fixed.Point26_6{
 					X: fixed.Int26_6((c.points[i] + c.curX) * 64),
-					Y: fixed.Int26_6((c.points[i+1] + c.curY) * 64)},
+					Y: fixed.Int26_6((c.points[i+1] + c.curY) * 64),
+				},
 				fixed.Point26_6{
 					X: fixed.Int26_6((c.points[i+2] + c.curX) * 64),
-					Y: fixed.Int26_6((c.points[i+3] + c.curY) * 64)},
+					Y: fixed.Int26_6((c.points[i+3] + c.curY) * 64),
+				},
 				fixed.Point26_6{
 					X: fixed.Int26_6((c.points[i+4] + c.curX) * 64),
-					Y: fixed.Int26_6((c.points[i+5] + c.curY) * 64)})
+					Y: fixed.Int26_6((c.points[i+5] + c.curY) * 64),
+				})
 		}
 		c.cntlPtX, c.cntlPtY = c.points[l-4], c.points[l-3]
 		c.placeX = c.points[l-2]
@@ -329,16 +341,19 @@ func (c *pathCursor) addSeg(segString string) error {
 		fallthrough
 	case 'S':
 		if !c.hasSetsOrMore(4, rel) {
-			return errParamMismatch
+			return errPathParamMismatch
 		}
 		for i := 0; i < l-3; i += 4 {
 			c.reflectControlCube()
 			c.path.CubeBezier(fixed.Point26_6{
-				X: fixed.Int26_6((c.cntlPtX + c.curX) * 64), Y: fixed.Int26_6((c.cntlPtY + c.curY) * 64)},
+				X: fixed.Int26_6((c.cntlPtX + c.curX) * 64), Y: fixed.Int26_6((c.cntlPtY + c.curY) * 64),
+			},
 				fixed.Point26_6{
-					X: fixed.Int26_6((c.points[i] + c.curX) * 64), Y: fixed.Int26_6((c.points[i+1] + c.curY) * 64)},
+					X: fixed.Int26_6((c.points[i] + c.curX) * 64), Y: fixed.Int26_6((c.points[i+1] + c.curY) * 64),
+				},
 				fixed.Point26_6{
-					X: fixed.Int26_6((c.points[i+2] + c.curX) * 64), Y: fixed.Int26_6((c.points[i+3] + c.curY) * 64)})
+					X: fixed.Int26_6((c.points[i+2] + c.curX) * 64), Y: fixed.Int26_6((c.points[i+3] + c.curY) * 64),
+				})
 			c.lastKey = k
 			c.cntlPtX, c.cntlPtY = c.points[i], c.points[i+1]
 			c.placeX = c.points[i+2]
@@ -346,7 +361,7 @@ func (c *pathCursor) addSeg(segString string) error {
 		}
 	case 'a', 'A':
 		if !c.hasSetsOrMore(7, false) {
-			return errParamMismatch
+			return errPathParamMismatch
 		}
 		for i := 0; i < l-6; i += 7 {
 			if k == 'a' {
@@ -376,7 +391,8 @@ func (c *pathCursor) ellipseAt(cx, cy, rx, ry float64) {
 	c.points = append(c.points, rx, ry, 0.0, 1.0, 0.0, c.placeX, c.placeY)
 	c.path.Start(fixed.Point26_6{
 		X: fixed.Int26_6(c.placeX * 64),
-		Y: fixed.Int26_6(c.placeY * 64)})
+		Y: fixed.Int26_6(c.placeY * 64),
+	})
 	c.placeX, c.placeY = c.path.addArc(c.points, cx, cy, c.placeX, c.placeY)
 	c.path.Stop(true)
 }

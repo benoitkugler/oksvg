@@ -46,7 +46,7 @@ func svgF(c *iconCursor, attrs []xml.Attr) error {
 		case "viewBox":
 			err = c.getPoints(attr.Value)
 			if len(c.points) != 4 {
-				return errParamMismatch
+				return errPathParamMismatch
 			}
 			c.icon.ViewBox.X = c.points[0]
 			c.icon.ViewBox.Y = c.points[1]
